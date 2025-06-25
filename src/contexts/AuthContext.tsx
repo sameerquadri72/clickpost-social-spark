@@ -1,16 +1,8 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import React, { createContext, useContext, useState } from 'react';
 
 interface AuthContextType {
-  currentUser: User | null;
+  currentUser: { email: string } | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -28,29 +20,24 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Mock user for testing - authentication disabled
+  const [currentUser] = useState<{ email: string } | null>({ email: 'test@example.com' });
+  const [loading] = useState(false);
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    // Mock login - just log the attempt
+    console.log('Mock login attempt:', email);
   };
 
   const register = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
+    // Mock register - just log the attempt  
+    console.log('Mock register attempt:', email);
   };
 
   const logout = async () => {
-    await signOut(auth);
+    // Mock logout - just log the attempt
+    console.log('Mock logout');
   };
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, []);
 
   const value = {
     currentUser,
@@ -62,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
