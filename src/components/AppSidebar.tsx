@@ -32,9 +32,10 @@ const navigationItems = [
 ];
 
 export function AppSidebar() {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
+  const isCollapsed = state === 'collapsed';
 
   const isActive = (path: string) => currentPath === path;
   const getNavClassName = ({ isActive }: { isActive: boolean }) =>
@@ -43,13 +44,13 @@ export function AppSidebar() {
       : "hover:bg-slate-100 text-slate-600 hover:text-slate-900";
 
   return (
-    <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible>
+    <Sidebar className={isCollapsed ? "w-16" : "w-64"} collapsible="icon">
       <div className="p-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-purple-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">E</span>
           </div>
-          {!collapsed && (
+          {!isCollapsed && (
             <div>
               <h1 className="font-bold text-lg text-slate-900">EkClickPost</h1>
               <p className="text-xs text-slate-500">Social Media Manager</p>
@@ -60,7 +61,7 @@ export function AppSidebar() {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? "sr-only" : ""}>
+          <SidebarGroupLabel className={isCollapsed ? "sr-only" : ""}>
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -73,7 +74,7 @@ export function AppSidebar() {
                       className={getNavClassName}
                     >
                       <item.icon className="h-5 w-5" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!isCollapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -83,7 +84,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       
-      {collapsed && (
+      {isCollapsed && (
         <div className="p-2">
           <SidebarTrigger className="w-full" />
         </div>
