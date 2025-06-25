@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +11,7 @@ import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { Dashboard } from "@/pages/Dashboard";
 import NotFound from "./pages/NotFound";
+import { CreatePost } from "@/pages/CreatePost";
 
 const queryClient = new QueryClient();
 
@@ -36,10 +36,7 @@ const App = () => (
             <Route path="/create" element={
               <ProtectedRoute>
                 <Layout>
-                  <div className="text-center py-20">
-                    <h1 className="text-3xl font-bold mb-4">Create Post</h1>
-                    <p className="text-slate-600">Post creation interface coming soon...</p>
-                  </div>
+                  <CreatePost />
                 </Layout>
               </ProtectedRoute>
             } />
