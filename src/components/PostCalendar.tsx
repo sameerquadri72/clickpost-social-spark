@@ -1,41 +1,10 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from '@/components/ui/calendar';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from 'date-fns';
-
-const MOCK_SCHEDULED_POSTS = [
-  {
-    id: '1',
-    title: 'Product Launch Announcement',
-    content: 'Exciting news! Our new product is here...',
-    platforms: ['facebook', 'linkedin'],
-    scheduledFor: new Date(2024, 11, 28, 10, 0),
-    status: 'scheduled',
-    color: 'bg-blue-500'
-  },
-  {
-    id: '2',
-    title: 'Behind the Scenes Content',
-    content: 'Take a look at our amazing team...',
-    platforms: ['instagram', 'facebook'],
-    scheduledFor: new Date(2024, 11, 29, 14, 30),
-    status: 'scheduled',
-    color: 'bg-purple-500'
-  },
-  {
-    id: '3',
-    title: 'Industry Insights',
-    content: 'Latest trends in our industry...',
-    platforms: ['linkedin', 'twitter'],
-    scheduledFor: new Date(2024, 11, 30, 9, 0),
-    status: 'draft',
-    color: 'bg-green-500'
-  }
-];
+import { usePosts } from '@/contexts/PostsContext';
 
 interface PostCalendarProps {
   onPostClick?: (post: any) => void;
@@ -49,7 +18,7 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
-  const [scheduledPosts] = useState(MOCK_SCHEDULED_POSTS);
+  const { scheduledPosts } = usePosts();
 
   const getPostsForDate = (date: Date) => {
     return scheduledPosts.filter(post => 

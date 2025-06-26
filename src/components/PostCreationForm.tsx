@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +11,7 @@ import { SchedulingInterface } from '@/components/SchedulingInterface';
 import { ContentTemplates } from '@/components/ContentTemplates';
 import { Save, Send, Clock, FileText, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { usePosts } from '@/contexts/PostsContext';
 
 const PLATFORM_LIMITS = {
   facebook: 63206,
@@ -26,6 +26,7 @@ export const PostCreationForm: React.FC = () => {
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([]);
   const [activeTab, setActiveTab] = useState('create');
   const { toast } = useToast();
+  const { addScheduledPost } = usePosts();
 
   // Auto-save functionality
   useEffect(() => {
@@ -95,6 +96,18 @@ export const PostCreationForm: React.FC = () => {
       });
       return;
     }
+    
+    // Add the scheduled post to the context
+    addScheduledPost({
+      title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
+      content,
+      platforms: selectedPlatforms,
+      scheduledFor: scheduleData.dateTime,
+      status: 'scheduled',
+      media: uploadedMedia,
+      timeZone: scheduleData.timeZone,
+      repeat: scheduleData.repeat
+    });
     
     console.log('Scheduling post:', { content, selectedPlatforms, uploadedMedia, scheduleData });
     toast({

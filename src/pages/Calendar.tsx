@@ -6,25 +6,41 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Filter, Download, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { usePosts } from '@/contexts/PostsContext';
+import { isThisWeek, isThisMonth, addDays } from 'date-fns';
 
 export const Calendar: React.FC = () => {
   const navigate = useNavigate();
   const [selectedPost, setSelectedPost] = useState<any>(null);
+  const { scheduledPosts } = usePosts();
 
   const handlePostClick = (post: any) => {
     setSelectedPost(post);
-    // Here you could open a modal or navigate to edit the post
     console.log('Post clicked:', post);
   };
 
   const handleDateClick = (date: Date) => {
     console.log('Date clicked:', date);
-    // Here you could pre-fill the create post form with the selected date
   };
 
   const handleCreatePost = () => {
     navigate('/create');
   };
+
+  // Calculate stats from scheduled posts
+  const thisWeekPosts = scheduledPosts.filter(post => isThisWeek(post.scheduledFor));
+  const thisMonthPosts = scheduledPosts.filter(post => isThisMonth(post.scheduledFor));
+  const draftPosts = scheduledPosts.filter(post => post.status === 'draft');
+  const publishedPosts = scheduledPosts.filter(post => post.status === 'published');
+
+  // Get upcoming posts for next 7 days
+  const upcomingPosts = scheduledPosts
+    .filter(post => {
+      const now = new Date();
+      const weekFromNow = addDays(now, 7);
+      return post.scheduledFor >= now && post.scheduledFor <= weekFromNow;
+    })
+    .slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -58,8 +74,8 @@ export const Calendar: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">This Week</p>
-                <p className="text-2xl font-bold">12</p>
-                <p className="text-xs text-green-600">+3 from last week</p>
+                <p className="text-2xl font-bold">{thisWeekPosts.length}</p>
+                <p className="text-xs text-green-600">Scheduled posts</p>
               </div>
               <div className="p-2 bg-blue-100 rounded-lg">
                 <TrendingUp className="h-5 w-5 text-blue-600" />
@@ -73,8 +89,8 @@ export const Calendar: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">This Month</p>
-                <p className="text-2xl font-bold">48</p>
-                <p className="text-xs text-green-600">+12 from last month</p>
+                <p className="text-2xl font-bold">{thisMonthPosts.length}</p>
+                <p className="text-xs text-green-600">Scheduled posts</p>
               </div>
               <div className="p-2 bg-green-100 rounded-lg">
                 <TrendingUp className="h-5 w-5 text-green-600" />
@@ -88,7 +104,7 @@ export const Calendar: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">Drafts</p>
-                <p className="text-2xl font-bold">7</p>
+                <p className="text-2xl font-bold">{draftPosts.length}</p>
                 <p className="text-xs text-slate-500">Ready to schedule</p>
               </div>
               <div className="p-2 bg-yellow-100 rounded-lg">
@@ -103,8 +119,8 @@ export const Calendar: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-slate-600">Published</p>
-                <p className="text-2xl font-bold">156</p>
-                <p className="text-xs text-green-600">This month</p>
+                <p className="text-2xl font-bold">{publishedPosts.length}</p>
+                <p className="text-xs text-green-600">All time</p>
               </div>
               <div className="p-2 bg-purple-100 rounded-lg">
                 <TrendingUp className="h-5 w-5 text-purple-600" />
@@ -127,40 +143,18 @@ export const Calendar: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {[
-              {
-                id: '1',
-                title: 'Weekly Newsletter',
-                date: 'Tomorrow, 9:00 AM',
-                platforms: ['linkedin', 'facebook'],
-                status: 'scheduled'
-              },
-              {
-                id: '2',
-                title: 'Product Update',
-                date: 'Dec 30, 2:00 PM',
-                platforms: ['twitter', 'instagram'],
-                status: 'scheduled'
-              },
-              {
-                id: '3',
-                title: 'Year End Review',
-                date: 'Dec 31, 6:00 PM',
-                platforms: ['facebook', 'linkedin', 'twitter'],
-                status: 'draft'
-              }
-            ].map((post) => (
+            {upcomingPosts.map((post) => (
               <div key={post.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                   <div>
                     <h4 className="font-medium">{post.title}</h4>
-                    <p className="text-sm text-slate-600">{post.date}</p>
+                    <p className="text-sm text-slate-600">{post.scheduledFor.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex gap-1">
-                    {post.platforms.map((platform) => (
+                    {post.platforms.map((platform: string) => (
                       <Badge key={platform} variant="secondary" className="text-xs">
                         {platform}
                       </Badge>
@@ -172,6 +166,11 @@ export const Calendar: React.FC = () => {
                 </div>
               </div>
             ))}
+            {upcomingPosts.length === 0 && (
+              <p className="text-center text-slate-500 py-8">
+                No posts scheduled for the next 7 days
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
