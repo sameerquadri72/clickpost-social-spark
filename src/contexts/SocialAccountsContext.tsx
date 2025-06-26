@@ -1,5 +1,5 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { getAuthUrl } from '@/config/socialMedia';
 
 export interface SocialAccount {
   id: string;
@@ -16,7 +16,8 @@ export interface SocialAccount {
 
 interface SocialAccountsContextType {
   accounts: SocialAccount[];
-  connectLinkedIn: () => Promise<void>;
+  connectAccount: (platform: string) => void;
+  addAccount: (account: SocialAccount) => void;
   disconnectAccount: (accountId: string) => void;
   getActiveAccounts: (platform?: string) => SocialAccount[];
   isAccountConnected: (platform: string) => boolean;
@@ -63,23 +64,25 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   }, [accounts]);
 
-  const connectLinkedIn = async () => {
-    // Mock LinkedIn connection - in real app, this would use LinkedIn OAuth
-    const mockAccount: SocialAccount = {
-      id: `linkedin_${Date.now()}`,
-      platform: 'linkedin',
-      name: 'John Doe',
-      username: 'john.doe',
-      profileImage: '/placeholder.svg',
-      accessToken: `mock_linkedin_token_${Date.now()}`,
-      refreshToken: `mock_refresh_token_${Date.now()}`,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
-      isActive: true,
-      connectedAt: new Date()
-    };
+  const connectAccount = (platform: string) => {
+    try {
+      const authUrl = getAuthUrl(platform as keyof typeof import('@/config/socialMedia').SOCIAL_MEDIA_CONFIG);
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Failed to initiate OAuth flow:', error);
+      throw error;
+    }
+  };
 
-    setAccounts(prev => [...prev, mockAccount]);
-    console.log('Connected LinkedIn account:', mockAccount);
+  const addAccount = (account: SocialAccount) => {
+    setAccounts(prev => {
+      // Remove any existing account for the same platform and user
+      const filtered = prev.filter(acc => 
+        !(acc.platform === account.platform && acc.username === account.username)
+      );
+      return [...filtered, account];
+    });
+    console.log('Added account:', account.platform, account.username);
   };
 
   const disconnectAccount = (accountId: string) => {
@@ -100,7 +103,8 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
   return (
     <SocialAccountsContext.Provider value={{
       accounts,
-      connectLinkedIn,
+      connectAccount,
+      addAccount,
       disconnectAccount,
       getActiveAccounts,
       isAccountConnected

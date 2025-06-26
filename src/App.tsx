@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +12,7 @@ import { Landing } from "@/pages/Landing";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { Dashboard } from "@/pages/Dashboard";
+import { SocialAuthCallback } from "@/components/SocialAuthCallback";
 import NotFound from "./pages/NotFound";
 import { CreatePost } from "@/pages/CreatePost";
 import { Calendar } from "@/pages/Calendar";
@@ -33,6 +33,10 @@ const App = () => (
                 <Route path="/" element={<Landing />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                
+                {/* Social Auth Callbacks */}
+                <Route path="/auth/:platform/callback" element={<SocialAuthCallback />} />
+                
                 <Route path="/dashboard" element={
                   <ProtectedRoute>
                     <Layout>
