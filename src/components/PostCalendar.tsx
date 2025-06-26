@@ -1,9 +1,10 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, startOfWeek, endOfWeek } from 'date-fns';
 import { usePosts } from '@/contexts/PostsContext';
 
 interface PostCalendarProps {
@@ -50,6 +51,7 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
 
     return (
       <div
+        key={date.toISOString()}
         className={`min-h-[100px] p-2 border-r border-b cursor-pointer hover:bg-slate-50 ${
           isSelected ? 'bg-brand-50 border-brand-200' : ''
         } ${isCurrentDay ? 'bg-blue-50' : ''}`}
@@ -64,13 +66,14 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
           {posts.slice(0, 3).map((post) => (
             <div
               key={post.id}
-              className={`text-xs p-1 rounded cursor-pointer ${post.color} text-white truncate`}
+              className={`text-xs p-1 rounded cursor-pointer ${post.color} text-white truncate hover:opacity-80`}
               onClick={(e) => {
                 e.stopPropagation();
                 onPostClick?.(post);
               }}
+              title={post.title}
             >
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 mb-1">
                 <Clock className="h-3 w-3" />
                 {format(post.scheduledFor, 'HH:mm')}
               </div>
@@ -78,7 +81,7 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
             </div>
           ))}
           {posts.length > 3 && (
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 bg-slate-100 p-1 rounded">
               +{posts.length - 3} more
             </div>
           )}
@@ -87,9 +90,12 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
     );
   };
 
+  // Get the full calendar grid including previous/next month days
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
-  const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const calendarStart = startOfWeek(monthStart);
+  const calendarEnd = endOfWeek(monthEnd);
+  const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   return (
     <div className="space-y-6">
@@ -148,19 +154,22 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
+              <div className="text-sm text-slate-600">
+                {scheduledPosts.length} posts scheduled
+              </div>
             </div>
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                <span>Scheduled</span>
+                <span>Facebook</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-green-500 rounded"></div>
-                <span>Draft</span>
+                <div className="w-3 h-3 bg-sky-500 rounded"></div>
+                <span>Twitter</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-3 h-3 bg-red-500 rounded"></div>
-                <span>Failed</span>
+                <div className="w-3 h-3 bg-purple-500 rounded"></div>
+                <span>Multi-platform</span>
               </div>
             </div>
           </div>
@@ -180,11 +189,17 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
               ))}
               
               {/* Calendar Days */}
-              {calendarDays.map((date) => (
-                <div key={date.toISOString()}>
-                  {renderCalendarDay(date)}
-                </div>
-              ))}
+              {calendarDays.map((date) => {
+                const isCurrentMonth = date.getMonth() === currentDate.getMonth();
+                return (
+                  <div
+                    key={date.toISOString()}
+                    className={`${!isCurrentMonth ? 'opacity-30' : ''}`}
+                  >
+                    {renderCalendarDay(date)}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -201,7 +216,7 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
           <CardContent>
             <div className="space-y-3">
               {getPostsForDate(selectedDate).map((post) => (
-                <div key={post.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div key={post.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className="font-medium">{post.title}</h4>
@@ -209,7 +224,7 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
                         {post.status}
                       </Badge>
                     </div>
-                    <p className="text-sm text-slate-600 mb-2">{post.content}</p>
+                    <p className="text-sm text-slate-600 mb-2 line-clamp-2">{post.content}</p>
                     <div className="flex items-center gap-4 text-xs text-slate-500">
                       <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
@@ -219,6 +234,11 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
                         <Users className="h-3 w-3" />
                         {post.platforms.join(', ')}
                       </div>
+                      {post.timeZone && (
+                        <div className="text-xs text-slate-400">
+                          {post.timeZone}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => onPostClick?.(post)}>
