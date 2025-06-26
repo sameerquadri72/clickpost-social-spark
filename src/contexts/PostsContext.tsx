@@ -7,7 +7,7 @@ export interface ScheduledPost {
   content: string;
   platforms: string[];
   scheduledFor: Date;
-  status: 'scheduled' | 'draft' | 'published' | 'failed';
+  status: 'scheduled' | 'draft' | 'published' | 'failed' | 'publishing';
   color: string;
   media?: File[];
   timeZone: string;
