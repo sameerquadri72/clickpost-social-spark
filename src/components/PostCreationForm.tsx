@@ -1,13 +1,16 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PlatformSelector } from '@/components/PlatformSelector';
 import { MediaUpload } from '@/components/MediaUpload';
 import { PostPreview } from '@/components/PostPreview';
-import { Save, Send, Clock } from 'lucide-react';
+import { SchedulingInterface } from '@/components/SchedulingInterface';
+import { ContentTemplates } from '@/components/ContentTemplates';
+import { Save, Send, Clock, FileText, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const PLATFORM_LIMITS = {
@@ -21,7 +24,40 @@ export const PostCreationForm: React.FC = () => {
   const [content, setContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([]);
+  const [activeTab, setActiveTab] = useState('create');
   const { toast } = useToast();
+
+  // Auto-save functionality
+  useEffect(() => {
+    const autoSave = setInterval(() => {
+      if (content.trim()) {
+        const draftData = {
+          content,
+          selectedPlatforms,
+          uploadedMedia: uploadedMedia.map(file => file.name),
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('postDraft', JSON.stringify(draftData));
+        console.log('Auto-saved draft');
+      }
+    }, 30000); // Auto-save every 30 seconds
+
+    return () => clearInterval(autoSave);
+  }, [content, selectedPlatforms, uploadedMedia]);
+
+  // Load draft on mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('postDraft');
+    if (savedDraft) {
+      try {
+        const draftData = JSON.parse(savedDraft);
+        setContent(draftData.content || '');
+        setSelectedPlatforms(draftData.selectedPlatforms || ['facebook']);
+      } catch (error) {
+        console.error('Failed to load draft:', error);
+      }
+    }
+  }, []);
 
   const getCharacterLimit = () => {
     if (selectedPlatforms.length === 1) {
@@ -36,17 +72,40 @@ export const PostCreationForm: React.FC = () => {
   const isOverLimit = content.length > currentLimit;
 
   const handleSaveDraft = () => {
+    const draftData = {
+      content,
+      selectedPlatforms,
+      uploadedMedia: uploadedMedia.map(file => file.name),
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('postDraft', JSON.stringify(draftData));
+    
     toast({
       title: "Draft Saved",
       description: "Your post has been saved as a draft.",
     });
   };
 
-  const handleSchedulePost = () => {
+  const handleSchedulePost = (scheduleData: any) => {
+    if (isOverLimit) {
+      toast({
+        title: "Character Limit Exceeded",
+        description: `Your post exceeds the ${currentLimit} character limit.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    console.log('Scheduling post:', { content, selectedPlatforms, uploadedMedia, scheduleData });
     toast({
-      title: "Schedule Post",
-      description: "Scheduling interface coming soon!",
+      title: "Post Scheduled",
+      description: `Your post has been scheduled for ${scheduleData.dateTime.toLocaleString()}`,
     });
+    
+    // Clear the form after scheduling
+    setContent('');
+    setUploadedMedia([]);
+    localStorage.removeItem('postDraft');
   };
 
   const handlePostNow = () => {
@@ -59,78 +118,120 @@ export const PostCreationForm: React.FC = () => {
       return;
     }
     
+    console.log('Posting now:', { content, selectedPlatforms, uploadedMedia });
     toast({
       title: "Post Publishing",
       description: "Social media API integration coming soon!",
     });
   };
 
+  const handleTemplateSelect = (template: any) => {
+    setContent(template.content);
+    setSelectedPlatforms(template.platforms);
+    setActiveTab('create');
+    
+    toast({
+      title: "Template Applied",
+      description: `"${template.name}" template has been applied to your post.`,
+    });
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Main Creation Form */}
-      <div className="lg:col-span-2 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Your Post</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Platform Selection */}
-            <div>
-              <Label htmlFor="platforms">Select Platforms</Label>
-              <PlatformSelector 
-                selectedPlatforms={selectedPlatforms}
-                onPlatformChange={setSelectedPlatforms}
-              />
-            </div>
+      {/* Main Creation Interface */}
+      <div className="lg:col-span-2">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="create" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Create
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Schedule
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Templates
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Content Input */}
-            <div>
-              <Label htmlFor="content">Post Content</Label>
-              <Textarea
-                id="content"
-                placeholder="What's on your mind? Share your thoughts with your audience..."
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                className={`min-h-[200px] resize-none ${isOverLimit ? 'border-red-500' : ''}`}
-              />
-              <div className="flex justify-between items-center mt-2">
-                <span className={`text-sm ${isOverLimit ? 'text-red-500' : 'text-slate-500'}`}>
-                  {content.length} / {currentLimit} characters
-                </span>
-                {selectedPlatforms.length > 1 && (
-                  <span className="text-xs text-slate-400">
-                    Limit based on most restrictive platform
-                  </span>
-                )}
-              </div>
-            </div>
+          <TabsContent value="create" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create Your Post</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Platform Selection */}
+                <div>
+                  <Label htmlFor="platforms">Select Platforms</Label>
+                  <PlatformSelector 
+                    selectedPlatforms={selectedPlatforms}
+                    onPlatformChange={setSelectedPlatforms}
+                  />
+                </div>
 
-            {/* Media Upload */}
-            <div>
-              <Label>Media</Label>
-              <MediaUpload 
-                onMediaUpload={setUploadedMedia}
-                uploadedMedia={uploadedMedia}
-              />
-            </div>
+                {/* Content Input */}
+                <div>
+                  <Label htmlFor="content">Post Content</Label>
+                  <Textarea
+                    id="content"
+                    placeholder="What's on your mind? Share your thoughts with your audience..."
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    className={`min-h-[200px] resize-none ${isOverLimit ? 'border-red-500' : ''}`}
+                  />
+                  <div className="flex justify-between items-center mt-2">
+                    <span className={`text-sm ${isOverLimit ? 'text-red-500' : 'text-slate-500'}`}>
+                      {content.length} / {currentLimit} characters
+                    </span>
+                    {selectedPlatforms.length > 1 && (
+                      <span className="text-xs text-slate-400">
+                        Limit based on most restrictive platform
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={handlePostNow} className="gradient-bg text-white">
-                <Send className="h-4 w-4 mr-2" />
-                Post Now
-              </Button>
-              <Button onClick={handleSchedulePost} variant="outline">
-                <Clock className="h-4 w-4 mr-2" />
-                Schedule
-              </Button>
-              <Button onClick={handleSaveDraft} variant="outline">
-                <Save className="h-4 w-4 mr-2" />
-                Save Draft
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                {/* Media Upload */}
+                <div>
+                  <Label>Media</Label>
+                  <MediaUpload 
+                    onMediaUpload={setUploadedMedia}
+                    uploadedMedia={uploadedMedia}
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3">
+                  <Button onClick={handlePostNow} className="gradient-bg text-white">
+                    <Send className="h-4 w-4 mr-2" />
+                    Post Now
+                  </Button>
+                  <Button onClick={() => setActiveTab('schedule')} variant="outline">
+                    <Clock className="h-4 w-4 mr-2" />
+                    Schedule
+                  </Button>
+                  <Button onClick={handleSaveDraft} variant="outline">
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Draft
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="schedule">
+            <SchedulingInterface 
+              onSchedule={handleSchedulePost}
+              selectedPlatforms={selectedPlatforms}
+            />
+          </TabsContent>
+
+          <TabsContent value="templates">
+            <ContentTemplates onSelectTemplate={handleTemplateSelect} />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Preview Panel */}
@@ -140,6 +241,33 @@ export const PostCreationForm: React.FC = () => {
           selectedPlatforms={selectedPlatforms}
           uploadedMedia={uploadedMedia}
         />
+        
+        {/* Quick Stats */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Stats</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Platforms:</span>
+                <span>{selectedPlatforms.length}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Media Files:</span>
+                <span>{uploadedMedia.length}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Character Count:</span>
+                <span className={isOverLimit ? 'text-red-500' : ''}>{content.length}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Est. Reach:</span>
+                <span className="text-green-600">~{selectedPlatforms.length * 1000}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
