@@ -102,20 +102,45 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
 
   const connectAccount = async (platform: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Not authenticated');
+      // First check if user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError) {
+        console.error('Auth error:', userError);
+        throw new Error('Authentication error. Please try logging in again.');
+      }
+      
+      if (!user) {
+        throw new Error('You must be logged in to connect social accounts. Please log in first.');
+      }
+
+      console.log('User authenticated, initiating OAuth for:', platform);
+
+      // Get the current session to include in the request
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error('No valid session found. Please log in again.');
       }
 
       const response = await supabase.functions.invoke(`${platform}-oauth`, {
-        body: { action: 'initiate' }
+        body: { action: 'initiate' },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
       if (response.error) {
+        console.error('OAuth initiation error:', response.error);
         throw new Error(response.error.message || 'Failed to initiate OAuth');
       }
 
       const { authUrl } = response.data;
+      if (!authUrl) {
+        throw new Error('No authorization URL received');
+      }
+
+      console.log('Redirecting to OAuth URL:', authUrl);
       window.location.href = authUrl;
     } catch (error) {
       console.error('Failed to connect account:', error);
