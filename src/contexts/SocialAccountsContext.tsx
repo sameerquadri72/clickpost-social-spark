@@ -1,111 +1,180 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getAuthUrl } from '@/config/socialMedia';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export interface SocialAccount {
   id: string;
   platform: 'linkedin' | 'facebook' | 'twitter' | 'instagram';
+  platform_user_id: string;
   name: string;
   username: string;
-  profileImage?: string;
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: Date;
-  isActive: boolean;
-  connectedAt: Date;
+  email?: string;
+  profile_image?: string;
+  access_token: string;
+  refresh_token?: string;
+  token_secret?: string;
+  page_access_token?: string;
+  expires_at?: string;
+  is_active: boolean;
+  metadata?: any;
+  created_at: string;
+  updated_at: string;
 }
 
 interface SocialAccountsContextType {
   accounts: SocialAccount[];
-  connectAccount: (platform: string) => void;
-  addAccount: (account: SocialAccount) => void;
-  disconnectAccount: (accountId: string) => void;
+  loading: boolean;
+  connectAccount: (platform: string) => Promise<void>;
+  disconnectAccount: (accountId: string) => Promise<void>;
+  refreshAccounts: () => Promise<void>;
   getActiveAccounts: (platform?: string) => SocialAccount[];
   isAccountConnected: (platform: string) => boolean;
 }
 
 const SocialAccountsContext = createContext<SocialAccountsContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'ekclickpost_social_accounts';
-
 export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Load accounts from localStorage on mount
-  useEffect(() => {
+  // Load accounts from Supabase
+  const refreshAccounts = async () => {
     try {
-      const storedAccounts = localStorage.getItem(STORAGE_KEY);
-      if (storedAccounts) {
-        const parsedAccounts = JSON.parse(storedAccounts);
-        const deserializedAccounts = parsedAccounts.map((account: any) => ({
-          ...account,
-          connectedAt: new Date(account.connectedAt),
-          expiresAt: account.expiresAt ? new Date(account.expiresAt) : undefined
-        }));
-        setAccounts(deserializedAccounts);
-        console.log('Loaded social accounts:', deserializedAccounts.length);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setAccounts([]);
+        setLoading(false);
+        return;
       }
+
+      const { data, error } = await supabase
+        .from('social_accounts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to load social accounts:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load social accounts",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setAccounts(data || []);
+      console.log('Loaded social accounts:', data?.length || 0);
     } catch (error) {
       console.error('Failed to load social accounts:', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    refreshAccounts();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('social_accounts_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'social_accounts'
+        },
+        () => {
+          refreshAccounts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // Save accounts to localStorage whenever accounts change
-  useEffect(() => {
+  const connectAccount = async (platform: string) => {
     try {
-      const serializedAccounts = accounts.map(account => ({
-        ...account,
-        connectedAt: account.connectedAt.toISOString(),
-        expiresAt: account.expiresAt?.toISOString()
-      }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializedAccounts));
-      console.log('Saved social accounts:', accounts.length);
-    } catch (error) {
-      console.error('Failed to save social accounts:', error);
-    }
-  }, [accounts]);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
 
-  const connectAccount = (platform: string) => {
-    try {
-      const authUrl = getAuthUrl(platform as keyof typeof import('@/config/socialMedia').SOCIAL_MEDIA_CONFIG);
+      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/${platform}-oauth/initiate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to initiate OAuth');
+      }
+
+      const { authUrl } = await response.json();
       window.location.href = authUrl;
     } catch (error) {
-      console.error('Failed to initiate OAuth flow:', error);
-      throw error;
+      console.error('Failed to connect account:', error);
+      toast({
+        title: "Connection Failed",
+        description: error instanceof Error ? error.message : "Failed to connect account",
+        variant: "destructive",
+      });
     }
   };
 
-  const addAccount = (account: SocialAccount) => {
-    setAccounts(prev => {
-      // Remove any existing account for the same platform and user
-      const filtered = prev.filter(acc => 
-        !(acc.platform === account.platform && acc.username === account.username)
-      );
-      return [...filtered, account];
-    });
-    console.log('Added account:', account.platform, account.username);
-  };
+  const disconnectAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase
+        .from('social_accounts')
+        .update({ is_active: false })
+        .eq('id', accountId);
 
-  const disconnectAccount = (accountId: string) => {
-    setAccounts(prev => prev.filter(account => account.id !== accountId));
-    console.log('Disconnected account:', accountId);
+      if (error) {
+        throw error;
+      }
+
+      await refreshAccounts();
+      
+      toast({
+        title: "Account Disconnected",
+        description: "Your social media account has been disconnected.",
+      });
+    } catch (error) {
+      console.error('Failed to disconnect account:', error);
+      toast({
+        title: "Error",
+        description: "Failed to disconnect account",
+        variant: "destructive",
+      });
+    }
   };
 
   const getActiveAccounts = (platform?: string) => {
     return accounts.filter(account => 
-      account.isActive && (!platform || account.platform === platform)
+      account.is_active && (!platform || account.platform === platform)
     );
   };
 
   const isAccountConnected = (platform: string) => {
-    return accounts.some(account => account.platform === platform && account.isActive);
+    return accounts.some(account => account.platform === platform && account.is_active);
   };
 
   return (
     <SocialAccountsContext.Provider value={{
       accounts,
+      loading,
       connectAccount,
-      addAccount,
       disconnectAccount,
+      refreshAccounts,
       getActiveAccounts,
       isAccountConnected
     }}>

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +15,8 @@ import {
   CheckCircle, 
   AlertCircle,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { useToast } from '@/hooks/use-toast';
@@ -50,41 +52,70 @@ const PLATFORMS = [
     name: 'Instagram',
     icon: Instagram,
     color: 'bg-pink-500',
-    description: 'Share photos and stories to Instagram',
-    available: false // Instagram requires special approval
+    description: 'Share photos and stories to Instagram (via Facebook Pages)',
+    available: true
   }
 ];
 
 export const Accounts: React.FC = () => {
-  const [isConnecting, setIsConnecting] = useState<string | null>(null);
-  const { accounts, connectAccount, disconnectAccount, isAccountConnected } = useSocialAccounts();
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  const { accounts, loading, connectAccount, disconnectAccount, isAccountConnected } = useSocialAccounts();
   const { toast } = useToast();
 
-  const handleConnect = async (platformId: string) => {
-    setIsConnecting(platformId);
-    
-    try {
-      connectAccount(platformId);
-    } catch (error) {
+  // Handle OAuth success/error messages from URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
+
+    if (success) {
+      toast({
+        title: "Account Connected",
+        description: `Your ${success} account has been successfully connected.`,
+      });
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    if (error) {
       toast({
         title: "Connection Failed",
-        description: "Failed to initiate connection. Please try again.",
+        description: error,
         variant: "destructive",
       });
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [toast]);
+
+  const handleConnect = async (platformId: string) => {
+    setConnectingPlatform(platformId);
+    
+    try {
+      await connectAccount(platformId);
+    } catch (error) {
       console.error('Connection error:', error);
-      setIsConnecting(null);
+      setConnectingPlatform(null);
     }
   };
 
-  const handleDisconnect = (accountId: string, platformName: string) => {
-    disconnectAccount(accountId);
-    toast({
-      title: "Account Disconnected",
-      description: `Your ${platformName} account has been disconnected.`,
-    });
+  const handleDisconnect = async (accountId: string, platformName: string) => {
+    await disconnectAccount(accountId);
   };
 
-  const connectedAccounts = accounts.filter(account => account.isActive);
+  const connectedAccounts = accounts.filter(account => account.is_active);
+  const expiringSoonAccounts = accounts.filter(a => 
+    a.expires_at && new Date(a.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Loading accounts...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -99,15 +130,7 @@ export const Accounts: React.FC = () => {
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Setup Required:</strong> To connect real social media accounts, you need to configure API credentials in your environment variables. 
-          <a 
-            href="https://docs.google.com/document/d/1234567890" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 ml-1 inline-flex items-center"
-          >
-            View setup guide <ExternalLink className="h-3 w-3 ml-1" />
-          </a>
+          <strong>Setup Required:</strong> To connect real social media accounts, you need to configure API credentials as Supabase secrets.
         </AlertDescription>
       </Alert>
 
@@ -129,7 +152,7 @@ export const Accounts: React.FC = () => {
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
               <div>
-                <p className="text-2xl font-bold">{accounts.filter(a => a.isActive).length}</p>
+                <p className="text-2xl font-bold">{accounts.filter(a => a.is_active).length}</p>
                 <p className="text-sm text-slate-600">Active Connections</p>
               </div>
             </div>
@@ -140,9 +163,7 @@ export const Accounts: React.FC = () => {
             <div className="flex items-center space-x-2">
               <AlertCircle className="h-5 w-5 text-amber-600" />
               <div>
-                <p className="text-2xl font-bold">
-                  {accounts.filter(a => a.expiresAt && a.expiresAt < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).length}
-                </p>
+                <p className="text-2xl font-bold">{expiringSoonAccounts.length}</p>
                 <p className="text-sm text-slate-600">Expiring Soon</p>
               </div>
             </div>
@@ -161,13 +182,13 @@ export const Accounts: React.FC = () => {
               {connectedAccounts.map((account) => {
                 const platform = PLATFORMS.find(p => p.id === account.platform);
                 const Icon = platform?.icon || Users;
-                const isExpiringSoon = account.expiresAt && account.expiresAt < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                const isExpiringSoon = account.expires_at && new Date(account.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
                 
                 return (
                   <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center space-x-4">
                       <Avatar>
-                        <AvatarImage src={account.profileImage} />
+                        <AvatarImage src={account.profile_image} />
                         <AvatarFallback>
                           <Icon className="h-4 w-4" />
                         </AvatarFallback>
@@ -184,10 +205,10 @@ export const Accounts: React.FC = () => {
                         </div>
                         <p className="text-sm text-slate-600">@{account.username}</p>
                         <p className="text-xs text-slate-500">
-                          Connected {format(account.connectedAt, 'MMM d, yyyy')}
-                          {account.expiresAt && (
+                          Connected {format(new Date(account.created_at), 'MMM d, yyyy')}
+                          {account.expires_at && (
                             <span className="ml-2">
-                              • Expires {format(account.expiresAt, 'MMM d, yyyy')}
+                              • Expires {format(new Date(account.expires_at), 'MMM d, yyyy')}
                             </span>
                           )}
                         </p>
@@ -223,7 +244,7 @@ export const Accounts: React.FC = () => {
             {PLATFORMS.map((platform) => {
               const Icon = platform.icon;
               const isConnected = isAccountConnected(platform.id);
-              const isLoading = isConnecting === platform.id;
+              const isLoading = connectingPlatform === platform.id;
               
               return (
                 <div key={platform.id} className="border rounded-lg p-6">
@@ -235,11 +256,6 @@ export const Accounts: React.FC = () => {
                       <div>
                         <h3 className="font-semibold">{platform.name}</h3>
                         <p className="text-sm text-slate-600 mt-1">{platform.description}</p>
-                        {!platform.available && (
-                          <Badge variant="outline" className="mt-2 text-amber-600 border-amber-600">
-                            Requires Approval
-                          </Badge>
-                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end space-y-2">
@@ -255,7 +271,10 @@ export const Accounts: React.FC = () => {
                           size="sm"
                         >
                           {isLoading ? (
-                            'Connecting...'
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Connecting...
+                            </>
                           ) : (
                             <>
                               <Plus className="h-4 w-4 mr-2" />
@@ -283,19 +302,25 @@ export const Accounts: React.FC = () => {
             <h4>To connect real social media accounts, you need to:</h4>
             <ol>
               <li>Create developer applications for each platform</li>
-              <li>Configure OAuth redirect URIs</li>
-              <li>Set up environment variables with your API credentials</li>
-              <li>Deploy your application to a public URL</li>
+              <li>Configure OAuth redirect URIs to point to your Edge Functions</li>
+              <li>Set up Supabase secrets with your API credentials</li>
             </ol>
             
-            <h4>Required Environment Variables:</h4>
+            <h4>Required Supabase Secrets:</h4>
             <ul>
-              <li><code>VITE_LINKEDIN_CLIENT_ID</code> - LinkedIn App Client ID</li>
-              <li><code>VITE_LINKEDIN_CLIENT_SECRET</code> - LinkedIn App Client Secret</li>
-              <li><code>VITE_FACEBOOK_APP_ID</code> - Facebook App ID</li>
-              <li><code>VITE_FACEBOOK_APP_SECRET</code> - Facebook App Secret</li>
-              <li><code>VITE_TWITTER_CLIENT_ID</code> - Twitter App Client ID</li>
-              <li><code>VITE_TWITTER_CLIENT_SECRET</code> - Twitter App Client Secret</li>
+              <li><code>LINKEDIN_CLIENT_ID</code> - LinkedIn App Client ID</li>
+              <li><code>LINKEDIN_CLIENT_SECRET</code> - LinkedIn App Client Secret</li>
+              <li><code>FACEBOOK_APP_ID</code> - Facebook App ID</li>
+              <li><code>FACEBOOK_APP_SECRET</code> - Facebook App Secret</li>
+              <li><code>TWITTER_CLIENT_ID</code> - Twitter App Client ID</li>
+              <li><code>TWITTER_CLIENT_SECRET</code> - Twitter App Client Secret</li>
+            </ul>
+            
+            <h4>OAuth Redirect URIs to configure in your apps:</h4>
+            <ul>
+              <li>LinkedIn: <code>{window.location.origin}/functions/v1/linkedin-oauth/callback</code></li>
+              <li>Facebook: <code>{window.location.origin}/functions/v1/facebook-oauth/callback</code></li>
+              <li>Twitter: <code>{window.location.origin}/functions/v1/twitter-oauth/callback</code></li>
             </ul>
           </div>
         </CardContent>

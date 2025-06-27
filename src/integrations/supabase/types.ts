@@ -9,13 +9,108 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          oauth_token_secret: string | null
+          platform: string
+          redirect_url: string | null
+          state_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          oauth_token_secret?: string | null
+          platform: string
+          redirect_url?: string | null
+          state_token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          oauth_token_secret?: string | null
+          platform?: string
+          redirect_url?: string | null
+          state_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      social_accounts: {
+        Row: {
+          access_token: string
+          created_at: string
+          email: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          metadata: Json | null
+          name: string
+          page_access_token: string | null
+          platform: string
+          platform_user_id: string
+          profile_image: string | null
+          refresh_token: string | null
+          token_secret: string | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json | null
+          name: string
+          page_access_token?: string | null
+          platform: string
+          platform_user_id: string
+          profile_image?: string | null
+          refresh_token?: string | null
+          token_secret?: string | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json | null
+          name?: string
+          page_access_token?: string | null
+          platform?: string
+          platform_user_id?: string
+          profile_image?: string | null
+          refresh_token?: string | null
+          token_secret?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_expired_oauth_states: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
