@@ -1,5 +1,5 @@
 
-import { SocialAccount, useSocialAccounts } from '@/contexts/SocialAccountsContext';
+import { SocialAccount } from '@/contexts/SocialAccountsContext';
 import { ScheduledPost } from '@/contexts/PostsContext';
 import { linkedinService } from './linkedinService';
 
@@ -24,7 +24,7 @@ export class PostingService {
     const results: PostingResult[] = [];
 
     for (const platform of post.platforms) {
-      const account = accounts.find(acc => acc.platform === platform && acc.isActive);
+      const account = accounts.find(acc => acc.platform === platform && acc.is_active);
       
       if (!account) {
         console.error(`No active account found for platform: ${platform}`);

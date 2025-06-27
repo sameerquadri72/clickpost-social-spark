@@ -1,3 +1,4 @@
+
 import { SocialAccount } from '@/contexts/SocialAccountsContext';
 import { SOCIAL_MEDIA_CONFIG } from '@/config/socialMedia';
 
@@ -27,7 +28,7 @@ export class RealLinkedInService {
       console.log('Posting to LinkedIn:', { account: account.username, content: postData.content });
       
       // First, get the user's profile ID
-      const profileId = await this.getUserProfileId(account.accessToken);
+      const profileId = await this.getUserProfileId(account.access_token);
       
       // Create the post payload
       const postPayload: any = {
@@ -48,7 +49,7 @@ export class RealLinkedInService {
 
       // If media is provided, handle media upload
       if (postData.media && postData.media.length > 0) {
-        const mediaUrns = await this.uploadMedia(account.accessToken, postData.media, profileId);
+        const mediaUrns = await this.uploadMedia(account.access_token, postData.media, profileId);
         postPayload.specificContent['com.linkedin.ugc.ShareContent'].shareMediaCategory = 'IMAGE';
         postPayload.specificContent['com.linkedin.ugc.ShareContent'].media = mediaUrns.map(urn => ({
           status: 'READY',
@@ -66,7 +67,7 @@ export class RealLinkedInService {
       const response = await fetch(`${SOCIAL_MEDIA_CONFIG.linkedin.apiUrl}/ugcPosts`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${account.accessToken}`,
+          'Authorization': `Bearer ${account.access_token}`,
           'Content-Type': 'application/json',
           'X-Restli-Protocol-Version': '2.0.0'
         },
@@ -168,7 +169,7 @@ export class RealLinkedInService {
   async validateAccount(account: SocialAccount): Promise<boolean> {
     try {
       // Check if token is expired
-      if (account.expiresAt && account.expiresAt < new Date()) {
+      if (account.expires_at && account.expires_at < new Date().toISOString()) {
         console.log('LinkedIn token expired for account:', account.username);
         return false;
       }
@@ -176,7 +177,7 @@ export class RealLinkedInService {
       // Validate token by making a simple API call
       const response = await fetch(`${SOCIAL_MEDIA_CONFIG.linkedin.apiUrl}/people/~`, {
         headers: {
-          'Authorization': `Bearer ${account.accessToken}`,
+          'Authorization': `Bearer ${account.access_token}`,
           'Accept': 'application/json'
         }
       });

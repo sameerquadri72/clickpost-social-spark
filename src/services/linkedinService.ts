@@ -63,7 +63,7 @@ export class LinkedInService {
   async validateAccount(account: SocialAccount): Promise<boolean> {
     try {
       // Check if token is expired
-      if (account.expiresAt && account.expiresAt < new Date()) {
+      if (account.expires_at && account.expires_at < new Date().toISOString()) {
         console.log('LinkedIn token expired for account:', account.username);
         return false;
       }

@@ -66,7 +66,8 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         return;
       }
 
-      setAccounts(data || []);
+      // Cast the data to ensure proper typing
+      setAccounts((data || []) as SocialAccount[]);
       console.log('Loaded social accounts:', data?.length || 0);
     } catch (error) {
       console.error('Failed to load social accounts:', error);
@@ -106,20 +107,15 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`${supabase.supabaseUrl}/functions/v1/${platform}-oauth/initiate`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await supabase.functions.invoke(`${platform}-oauth`, {
+        body: { action: 'initiate' }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to initiate OAuth');
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to initiate OAuth');
       }
 
-      const { authUrl } = await response.json();
+      const { authUrl } = response.data;
       window.location.href = authUrl;
     } catch (error) {
       console.error('Failed to connect account:', error);

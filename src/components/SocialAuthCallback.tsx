@@ -1,16 +1,16 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { authService } from '@/services/authService';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { useToast } from '@/hooks/use-toast';
 
 export const SocialAuthCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { addAccount } = useSocialAccounts();
+  const { refreshAccounts } = useSocialAccounts();
   const { toast } = useToast();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Processing authentication...');
@@ -18,69 +18,33 @@ export const SocialAuthCallback: React.FC = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
+        const success = searchParams.get('success');
         const error = searchParams.get('error');
+        const platform = searchParams.get('platform');
 
         if (error) {
           throw new Error(`Authentication error: ${error}`);
         }
 
-        if (!code || !state) {
-          throw new Error('Missing authentication parameters');
+        if (success === 'true' && platform) {
+          setMessage(`Successfully connected ${platform} account!`);
+          setStatus('success');
+
+          // Refresh accounts to show the new connection
+          await refreshAccounts();
+
+          toast({
+            title: "Account Connected",
+            description: `Your ${platform} account has been successfully connected.`,
+          });
+
+          // Redirect to accounts page after a short delay
+          setTimeout(() => {
+            navigate('/accounts');
+          }, 2000);
+        } else {
+          throw new Error('Authentication failed');
         }
-
-        // Extract platform from state
-        const platform = state.split('_')[0];
-        
-        if (!platform) {
-          throw new Error('Invalid state parameter');
-        }
-
-        setMessage(`Connecting to ${platform}...`);
-
-        // Exchange code for access token
-        const tokenResponse = await authService.exchangeCodeForToken(platform, code);
-        
-        setMessage('Fetching profile information...');
-
-        // Get user profile
-        const profile = await authService.getUserProfile(platform, tokenResponse.access_token);
-
-        // Calculate expiration date
-        const expiresAt = tokenResponse.expires_in 
-          ? new Date(Date.now() + tokenResponse.expires_in * 1000)
-          : undefined;
-
-        // Create account object
-        const newAccount = {
-          id: `${platform}_${profile.id}`,
-          platform: platform as any,
-          name: profile.name,
-          username: profile.username,
-          profileImage: profile.profileImage,
-          accessToken: tokenResponse.access_token,
-          refreshToken: tokenResponse.refresh_token,
-          expiresAt,
-          isActive: true,
-          connectedAt: new Date()
-        };
-
-        // Add account to context
-        addAccount(newAccount);
-
-        setStatus('success');
-        setMessage(`Successfully connected ${platform} account!`);
-
-        toast({
-          title: "Account Connected",
-          description: `Your ${platform} account has been successfully connected.`,
-        });
-
-        // Redirect to accounts page after a short delay
-        setTimeout(() => {
-          navigate('/accounts');
-        }, 2000);
 
       } catch (error) {
         console.error('Authentication callback error:', error);
@@ -96,7 +60,7 @@ export const SocialAuthCallback: React.FC = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, addAccount, toast]);
+  }, [searchParams, navigate, refreshAccounts, toast]);
 
   const getStatusIcon = () => {
     switch (status) {
