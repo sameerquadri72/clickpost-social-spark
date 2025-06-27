@@ -30,7 +30,7 @@ export class RealLinkedInService {
       const profileId = await this.getUserProfileId(account.accessToken);
       
       // Create the post payload
-      const postPayload = {
+      const postPayload: any = {
         author: `urn:li:person:${profileId}`,
         lifecycleState: 'PUBLISHED',
         specificContent: {

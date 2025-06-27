@@ -1,3 +1,4 @@
+
 // Social Media API Configuration
 export const SOCIAL_MEDIA_CONFIG = {
   linkedin: {
@@ -10,8 +11,8 @@ export const SOCIAL_MEDIA_CONFIG = {
     apiUrl: 'https://api.linkedin.com/v2'
   },
   facebook: {
-    appId: import.meta.env.VITE_FACEBOOK_APP_ID || '',
-    appSecret: import.meta.env.VITE_FACEBOOK_APP_SECRET || '',
+    clientId: import.meta.env.VITE_FACEBOOK_APP_ID || '', // Using clientId for consistency
+    clientSecret: import.meta.env.VITE_FACEBOOK_APP_SECRET || '', // Using clientSecret for consistency
     redirectUri: `${window.location.origin}/auth/facebook/callback`,
     scope: 'pages_manage_posts,pages_read_engagement,publish_to_groups',
     authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
