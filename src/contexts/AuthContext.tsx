@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
-  currentUser: { email: string } | null;
+  currentUser: { email: string; id: string } | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -21,7 +21,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<{ email: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ email: string; id: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,7 +32,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error) {
           console.error('Error getting session:', error);
         } else if (session?.user) {
-          setCurrentUser({ email: session.user.email || '' });
+          setCurrentUser({ 
+            email: session.user.email || '', 
+            id: session.user.id 
+          });
         }
       } catch (error) {
         console.error('Error getting initial session:', error);
@@ -49,7 +52,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Auth state changed:', event, session?.user?.email);
         
         if (session?.user) {
-          setCurrentUser({ email: session.user.email || '' });
+          setCurrentUser({ 
+            email: session.user.email || '', 
+            id: session.user.id 
+          });
         } else {
           setCurrentUser(null);
         }
@@ -76,7 +82,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data.user) {
-        setCurrentUser({ email: data.user.email || '' });
+        setCurrentUser({ 
+          email: data.user.email || '', 
+          id: data.user.id 
+        });
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -92,14 +101,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`
+        }
       });
 
       if (error) {
         throw error;
       }
 
+      // Note: User will need to confirm email before they can sign in
+      if (data.user && !data.user.email_confirmed_at) {
+        throw new Error('Please check your email and click the confirmation link to complete registration.');
+      }
+
       if (data.user) {
-        setCurrentUser({ email: data.user.email || '' });
+        setCurrentUser({ 
+          email: data.user.email || '', 
+          id: data.user.id 
+        });
       }
     } catch (error) {
       console.error('Register error:', error);

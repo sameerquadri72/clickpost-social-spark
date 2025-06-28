@@ -1,4 +1,3 @@
-
 import { SocialAccount } from '@/contexts/SocialAccountsContext';
 import { ScheduledPost } from '@/contexts/PostsContext';
 
@@ -9,14 +8,14 @@ interface PostingResult {
   error?: string;
 }
 
-export class RealPostingService {
-  private static instance: RealPostingService;
+export class ProductionPostingService {
+  private static instance: ProductionPostingService;
 
-  public static getInstance(): RealPostingService {
-    if (!RealPostingService.instance) {
-      RealPostingService.instance = new RealPostingService();
+  public static getInstance(): ProductionPostingService {
+    if (!ProductionPostingService.instance) {
+      ProductionPostingService.instance = new ProductionPostingService();
     }
-    return RealPostingService.instance;
+    return ProductionPostingService.instance;
   }
 
   async publishPost(post: ScheduledPost, accounts: SocialAccount[]): Promise<PostingResult[]> {
@@ -402,4 +401,4 @@ export class RealPostingService {
   }
 }
 
-export const realPostingService = RealPostingService.getInstance();
+export const productionPostingService = ProductionPostingService.getInstance();

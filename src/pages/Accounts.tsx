@@ -14,11 +14,11 @@ import {
   CheckCircle, 
   AlertCircle,
   Trash2,
-  ExternalLink,
   Loader2,
   Settings,
   AlertTriangle,
-  Info
+  Info,
+  ExternalLink
 } from 'lucide-react';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { useToast } from '@/hooks/use-toast';
@@ -32,7 +32,7 @@ const PLATFORMS = [
     color: 'bg-blue-600',
     description: 'Connect your LinkedIn profile to share professional content',
     available: true,
-    envVars: ['VITE_LINKEDIN_CLIENT_ID']
+    setupUrl: 'https://www.linkedin.com/developers/apps'
   },
   {
     id: 'facebook',
@@ -41,7 +41,7 @@ const PLATFORMS = [
     color: 'bg-blue-500',
     description: 'Share posts to your Facebook profile or pages',
     available: true,
-    envVars: ['VITE_FACEBOOK_APP_ID']
+    setupUrl: 'https://developers.facebook.com/apps'
   },
   {
     id: 'twitter',
@@ -50,7 +50,7 @@ const PLATFORMS = [
     color: 'bg-slate-800',
     description: 'Post tweets and engage with your Twitter audience',
     available: true,
-    envVars: ['VITE_TWITTER_CLIENT_ID']
+    setupUrl: 'https://developer.twitter.com/en/portal/dashboard'
   },
   {
     id: 'instagram',
@@ -58,8 +58,8 @@ const PLATFORMS = [
     icon: Instagram,
     color: 'bg-pink-500',
     description: 'Share photos and stories to Instagram (via Facebook Pages)',
-    available: false, // Disabled for now as it requires Facebook setup
-    envVars: ['VITE_FACEBOOK_APP_ID']
+    available: true,
+    setupUrl: 'https://developers.facebook.com/apps'
   }
 ];
 
@@ -106,7 +106,6 @@ export const Accounts: React.FC = () => {
       console.error('Connection error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setLastError(errorMessage);
-      // Error is already handled in the context with toast notification
     } finally {
       setConnectingPlatform(null);
     }
@@ -120,15 +119,6 @@ export const Accounts: React.FC = () => {
   const expiringSoonAccounts = accounts.filter(a => 
     a.expires_at && new Date(a.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   );
-
-  const checkEnvVars = (envVars: string[]) => {
-    return envVars.every(envVar => {
-      const value = import.meta.env[envVar];
-      return value && value.trim() !== '';
-    });
-  };
-
-  const hasAnyEnvVars = PLATFORMS.some(platform => checkEnvVars(platform.envVars));
 
   if (loading) {
     return (
@@ -148,36 +138,39 @@ export const Accounts: React.FC = () => {
         </p>
       </div>
 
-      {/* Demo Mode Alert */}
+      {/* Setup Required Alert */}
       <Alert>
-        <Info className="h-4 w-4" />
+        <Settings className="h-4 w-4" />
         <AlertDescription>
-          <strong>Demo Mode:</strong> This version creates mock connections for demonstration purposes. 
-          In a production environment, you would need to set up proper OAuth credentials and implement 
-          secure token exchange on the backend.
+          <strong>OAuth Setup Required:</strong> To connect real social media accounts, OAuth credentials must be configured in your Supabase project secrets. 
+          <a 
+            href="https://supabase.com/docs/guides/functions/secrets" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline ml-1"
+          >
+            Learn how to set up secrets
+            <ExternalLink className="h-3 w-3 inline ml-1" />
+          </a>
         </AlertDescription>
       </Alert>
-
-      {/* Environment Variables Status */}
-      {!hasAnyEnvVars && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>No OAuth credentials configured:</strong> To test the OAuth flow with real credentials, 
-            copy <code>.env.example</code> to <code>.env</code> and fill in your OAuth app credentials.
-            <div className="mt-2 text-sm">
-              <p>For now, you can test with mock connections that simulate the OAuth flow.</p>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Error Alert */}
       {lastError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            <strong>Last Connection Error:</strong> {lastError}
+            <strong>Connection Error:</strong> {lastError}
+            {lastError.includes('credentials') && (
+              <div className="mt-2 text-sm">
+                <p>Required Supabase secrets for each platform:</p>
+                <ul className="list-disc list-inside mt-1 space-y-1">
+                  <li>LinkedIn: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET</li>
+                  <li>Facebook: FACEBOOK_APP_ID, FACEBOOK_APP_SECRET</li>
+                  <li>Twitter: TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET</li>
+                </ul>
+              </div>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -245,11 +238,6 @@ export const Accounts: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <h3 className="font-medium">{account.name}</h3>
                           <Badge variant="secondary">{account.platform}</Badge>
-                          {account.access_token.startsWith('mock_') && (
-                            <Badge variant="outline" className="text-blue-600 border-blue-600">
-                              Demo
-                            </Badge>
-                          )}
                           {isExpiringSoon && (
                             <Badge variant="destructive" className="text-xs">
                               Expires Soon
@@ -298,7 +286,6 @@ export const Accounts: React.FC = () => {
               const Icon = platform.icon;
               const isConnected = isAccountConnected(platform.id);
               const isLoading = connectingPlatform === platform.id;
-              const hasEnvVars = checkEnvVars(platform.envVars);
               
               return (
                 <div key={platform.id} className="border rounded-lg p-6">
@@ -310,14 +297,15 @@ export const Accounts: React.FC = () => {
                       <div>
                         <h3 className="font-semibold">{platform.name}</h3>
                         <p className="text-sm text-slate-600 mt-1">{platform.description}</p>
-                        <div className="mt-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${hasEnvVars ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                            <span className="text-xs text-slate-500">
-                              {hasEnvVars ? 'Credentials configured' : 'Demo mode (no credentials)'}
-                            </span>
-                          </div>
-                        </div>
+                        <a 
+                          href={platform.setupUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:text-blue-800 underline mt-2 inline-flex items-center"
+                        >
+                          Developer Console
+                          <ExternalLink className="h-3 w-3 ml-1" />
+                        </a>
                       </div>
                     </div>
                     <div className="flex flex-col items-end space-y-2">
@@ -354,43 +342,55 @@ export const Accounts: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Setup Instructions */}
+      {/* Production Setup Instructions */}
       <Card>
         <CardHeader>
-          <CardTitle>Setup Instructions</CardTitle>
+          <CardTitle>Production Setup Guide</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="prose prose-sm max-w-none">
-            <h4>Current Implementation:</h4>
+            <h4>Step 1: Create OAuth Applications</h4>
+            <p>Create developer applications for each platform you want to support:</p>
             <ul>
-              <li>✅ <strong>Demo Mode:</strong> Creates mock connections for testing the UI and flow</li>
-              <li>✅ <strong>OAuth Flow:</strong> Implements proper OAuth redirect flow with state validation</li>
-              <li>✅ <strong>Security:</strong> Uses secure state tokens stored in database</li>
-              <li>⚠️ <strong>Token Exchange:</strong> Requires backend implementation for production use</li>
+              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
+              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Facebook Developer Console</a></li>
+              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a></li>
             </ul>
             
-            <h4>For Production Use:</h4>
-            <ol>
-              <li>Set up OAuth applications with each social media platform</li>
-              <li>Implement secure token exchange on your backend server</li>
-              <li>Configure proper redirect URIs in your OAuth applications</li>
-              <li>Store client secrets securely on the backend (never in frontend)</li>
-            </ol>
+            <h4>Step 2: Configure OAuth Redirect URIs</h4>
+            <p>In each OAuth application, set the redirect URI to:</p>
+            <div className="bg-slate-100 p-3 rounded-lg font-mono text-sm">
+              <p>LinkedIn: <code>{window.location.origin}/functions/v1/linkedin-oauth/callback</code></p>
+              <p>Facebook: <code>{window.location.origin}/functions/v1/facebook-oauth/callback</code></p>
+              <p>Twitter: <code>{window.location.origin}/functions/v1/twitter-oauth/callback</code></p>
+            </div>
             
-            <h4>OAuth Redirect URIs for your apps:</h4>
-            <ul>
-              <li>LinkedIn: <code>{window.location.origin}/auth/linkedin/callback</code></li>
-              <li>Facebook: <code>{window.location.origin}/auth/facebook/callback</code></li>
-              <li>Twitter: <code>{window.location.origin}/auth/twitter/callback</code></li>
-            </ul>
+            <h4>Step 3: Configure Supabase Secrets</h4>
+            <p>Add the following secrets to your Supabase project:</p>
+            <div className="bg-slate-100 p-3 rounded-lg">
+              <ul className="space-y-1 text-sm font-mono">
+                <li>LINKEDIN_CLIENT_ID</li>
+                <li>LINKEDIN_CLIENT_SECRET</li>
+                <li>FACEBOOK_APP_ID</li>
+                <li>FACEBOOK_APP_SECRET</li>
+                <li>TWITTER_CLIENT_ID</li>
+                <li>TWITTER_CLIENT_SECRET</li>
+              </ul>
+            </div>
             
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h5 className="font-medium text-blue-800">Demo Features:</h5>
-              <ul className="text-sm text-blue-700 mt-2 space-y-1">
-                <li>• OAuth flow simulation with real redirect URLs</li>
-                <li>• Mock account creation with realistic profile data</li>
-                <li>• State validation for security demonstration</li>
-                <li>• Full UI/UX for account management</li>
+            <h4>Step 4: Deploy Edge Functions</h4>
+            <p>The OAuth Edge Functions are already included in your project. Deploy them using:</p>
+            <div className="bg-slate-100 p-3 rounded-lg font-mono text-sm">
+              <code>supabase functions deploy</code>
+            </div>
+            
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <h5 className="font-medium text-green-800">Security Features:</h5>
+              <ul className="text-sm text-green-700 mt-2 space-y-1">
+                <li>• Secure token exchange on the backend</li>
+                <li>• State parameter validation for CSRF protection</li>
+                <li>• Automatic token expiration handling</li>
+                <li>• Row-level security for user data isolation</li>
               </ul>
             </div>
           </div>

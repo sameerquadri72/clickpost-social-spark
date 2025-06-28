@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { directOAuthService } from '@/services/directOAuthService';
+import { productionOAuthService } from '@/services/productionOAuthService';
 
 export interface SocialAccount {
   id: string;
@@ -66,7 +66,6 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         return;
       }
 
-      // Cast the data to ensure proper typing
       setAccounts((data || []) as SocialAccount[]);
       console.log('Loaded social accounts:', data?.length || 0);
     } catch (error) {
@@ -114,22 +113,16 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         throw new Error('You must be logged in to connect social accounts. Please log in first.');
       }
 
-      console.log('User authenticated, initiating direct OAuth for:', platform);
+      console.log('User authenticated, initiating OAuth for:', platform);
 
-      // Use the new direct OAuth service
-      await directOAuthService.initiateOAuth(platform);
+      // Use production OAuth service
+      await productionOAuthService.initiateOAuth(platform);
       
     } catch (error) {
       console.error('Failed to connect account:', error);
       
       // Enhanced error message for better user experience
       let userFriendlyMessage = error instanceof Error ? error.message : "Failed to connect account";
-      
-      // Provide more specific error messages based on common issues
-      if (userFriendlyMessage.includes('credentials not configured') || 
-          userFriendlyMessage.includes('environment variables')) {
-        userFriendlyMessage = `${platform.charAt(0).toUpperCase() + platform.slice(1)} OAuth credentials not configured. Please set up the required environment variables in your .env file.`;
-      }
       
       toast({
         title: "Connection Failed",

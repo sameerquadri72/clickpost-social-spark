@@ -13,7 +13,7 @@ import { Save, Send, Clock, FileText, Calendar } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePosts } from '@/contexts/PostsContext';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
-import { realPostingService } from '@/services/realPostingService';
+import { productionPostingService } from '@/services/productionPostingService';
 
 const PLATFORM_LIMITS = {
   facebook: 63206,
@@ -167,7 +167,7 @@ export const PostCreationForm: React.FC = () => {
         description: "Your post is being published to selected platforms...",
       });
 
-      const results = await realPostingService.publishPost(postToPublish, selectedAccounts);
+      const results = await productionPostingService.publishPost(postToPublish, selectedAccounts);
       
       const successfulPosts = results.filter(r => r.success);
       const failedPosts = results.filter(r => !r.success);

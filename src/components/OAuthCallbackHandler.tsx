@@ -3,7 +3,6 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import { directOAuthService } from '@/services/directOAuthService';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -27,8 +26,6 @@ export const OAuthCallbackHandler: React.FC = () => {
       }
 
       try {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
         const error = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
 
@@ -37,31 +34,39 @@ export const OAuthCallbackHandler: React.FC = () => {
           throw new Error(`OAuth error: ${errorDescription || error}`);
         }
 
-        // Validate required parameters
-        if (!code || !state) {
-          throw new Error('Missing authorization code or state parameter');
+        setMessage(`Processing ${platform.charAt(0).toUpperCase() + platform.slice(1)} connection...`);
+
+        // The actual OAuth processing is handled by the Edge Functions
+        // This component just handles the redirect and shows status
+        
+        // Check if we have success parameter (set by Edge Function redirect)
+        const success = searchParams.get('success');
+        if (success) {
+          setStatus('success');
+          setMessage(`Successfully connected your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account!`);
+
+          // Refresh accounts to show the new connection
+          await refreshAccounts();
+
+          toast({
+            title: "Account Connected",
+            description: `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account has been successfully connected.`,
+          });
+
+          // Redirect to accounts page after a short delay
+          setTimeout(() => {
+            navigate('/accounts');
+          }, 2000);
+        } else {
+          // If no success parameter, this might be an intermediate step
+          // The Edge Function will handle the actual processing
+          setMessage('Completing OAuth flow...');
+          
+          // Wait a moment then redirect to accounts page
+          setTimeout(() => {
+            navigate('/accounts');
+          }, 3000);
         }
-
-        setMessage(`Connecting your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account...`);
-
-        // Handle the OAuth callback
-        await directOAuthService.handleOAuthCallback(platform, code, state);
-
-        setStatus('success');
-        setMessage(`Successfully connected your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account!`);
-
-        // Refresh accounts to show the new connection
-        await refreshAccounts();
-
-        toast({
-          title: "Account Connected",
-          description: `Your ${platform.charAt(0).toUpperCase() + platform.slice(1)} account has been successfully connected.`,
-        });
-
-        // Redirect to accounts page after a short delay
-        setTimeout(() => {
-          navigate('/accounts?success=' + platform);
-        }, 2000);
 
       } catch (error) {
         console.error('OAuth callback error:', error);
@@ -130,12 +135,8 @@ export const OAuthCallbackHandler: React.FC = () => {
                   <p className="text-sm text-red-700 mt-1">{errorDetails}</p>
                   {errorDetails.includes('credentials') && (
                     <div className="mt-2 text-xs text-red-600">
-                      <p>Make sure you have set up the following environment variables:</p>
-                      <ul className="list-disc list-inside mt-1">
-                        <li>VITE_LINKEDIN_CLIENT_ID</li>
-                        <li>VITE_FACEBOOK_APP_ID</li>
-                        <li>VITE_TWITTER_CLIENT_ID</li>
-                      </ul>
+                      <p>OAuth credentials may not be configured on the server.</p>
+                      <p>Contact your administrator to set up the required secrets.</p>
                     </div>
                   )}
                 </div>
