@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -13,16 +12,31 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
+    // Check required environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const facebookAppId = Deno.env.get('FACEBOOK_APP_ID');
+    const facebookAppSecret = Deno.env.get('FACEBOOK_APP_SECRET');
 
-    const authHeader = req.headers.get('Authorization')!;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase configuration');
+    }
+
+    if (!facebookAppId || !facebookAppSecret) {
+      throw new Error('Missing Facebook OAuth credentials. Please configure FACEBOOK_APP_ID and FACEBOOK_APP_SECRET in your Supabase project secrets.');
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+
     const { data: { user } } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
     
     if (!user) {
-      throw new Error('Unauthorized');
+      throw new Error('Unauthorized - invalid or expired token');
     }
 
     const url = new URL(req.url);
@@ -30,36 +44,47 @@ serve(async (req) => {
 
     switch (action) {
       case 'initiate':
-        return await initiateFacebookAuth(supabaseClient, user.id);
+        return await initiateFacebookAuth(supabaseClient, user.id, supabaseUrl, facebookAppId);
       case 'callback':
-        return await handleFacebookCallback(req, supabaseClient, user.id);
+        return await handleFacebookCallback(req, supabaseClient, user.id, supabaseUrl, facebookAppId, facebookAppSecret);
       default:
-        return new Response('Not found', { status: 404, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: 'Invalid action' }), {
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
   } catch (error) {
     console.error('Facebook OAuth error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      details: 'Check that FACEBOOK_APP_ID and FACEBOOK_APP_SECRET are configured in your Supabase project secrets'
+    }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
 
-async function initiateFacebookAuth(supabaseClient: any, userId: string) {
+async function initiateFacebookAuth(supabaseClient: any, userId: string, supabaseUrl: string, appId: string) {
   const stateToken = crypto.randomUUID();
-  const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/facebook-oauth/callback`;
+  const redirectUri = `${supabaseUrl}/functions/v1/facebook-oauth/callback`;
   
-  await supabaseClient
+  const { error: insertError } = await supabaseClient
     .from('oauth_states')
     .insert({
       state_token: stateToken,
       platform: 'facebook',
       user_id: userId,
-      redirect_url: `${new URL(Deno.env.get('SUPABASE_URL') || '').origin}/accounts`
+      redirect_url: `${new URL(supabaseUrl).origin}/accounts`
     });
 
+  if (insertError) {
+    console.error('Failed to store OAuth state:', insertError);
+    throw new Error('Failed to initialize OAuth flow');
+  }
+
   const authUrl = new URL('https://www.facebook.com/v18.0/dialog/oauth');
-  authUrl.searchParams.set('client_id', Deno.env.get('FACEBOOK_APP_ID') || '');
+  authUrl.searchParams.set('client_id', appId);
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('state', stateToken);
   authUrl.searchParams.set('scope', 'pages_manage_posts,pages_read_engagement,public_profile,pages_show_list,instagram_content_publish');
@@ -69,10 +94,15 @@ async function initiateFacebookAuth(supabaseClient: any, userId: string) {
   });
 }
 
-async function handleFacebookCallback(req: Request, supabaseClient: any, userId: string) {
+async function handleFacebookCallback(req: Request, supabaseClient: any, userId: string, supabaseUrl: string, appId: string, appSecret: string) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    throw new Error(`Facebook OAuth error: ${error}`);
+  }
 
   if (!code || !state) {
     throw new Error('Missing code or state parameter');
@@ -91,18 +121,20 @@ async function handleFacebookCallback(req: Request, supabaseClient: any, userId:
     throw new Error('Invalid state parameter');
   }
 
-  const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/facebook-oauth/callback`;
+  const redirectUri = `${supabaseUrl}/functions/v1/facebook-oauth/callback`;
 
   // Exchange code for short-lived token
   const tokenResponse = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?` + 
     new URLSearchParams({
-      client_id: Deno.env.get('FACEBOOK_APP_ID') || '',
-      client_secret: Deno.env.get('FACEBOOK_APP_SECRET') || '',
+      client_id: appId,
+      client_secret: appSecret,
       redirect_uri: redirectUri,
       code,
     }));
 
   if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    console.error('Facebook token exchange failed:', errorText);
     throw new Error('Failed to exchange code for token');
   }
 
@@ -112,15 +144,28 @@ async function handleFacebookCallback(req: Request, supabaseClient: any, userId:
   const longLivedTokenResponse = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?` +
     new URLSearchParams({
       grant_type: 'fb_exchange_token',
-      client_id: Deno.env.get('FACEBOOK_APP_ID') || '',
-      client_secret: Deno.env.get('FACEBOOK_APP_SECRET') || '',
+      client_id: appId,
+      client_secret: appSecret,
       fb_exchange_token: tokenData.access_token,
     }));
+
+  if (!longLivedTokenResponse.ok) {
+    const errorText = await longLivedTokenResponse.text();
+    console.error('Facebook long-lived token exchange failed:', errorText);
+    throw new Error('Failed to get long-lived token');
+  }
 
   const longLivedTokenData = await longLivedTokenResponse.json();
 
   // Get user profile
   const profileResponse = await fetch(`https://graph.facebook.com/v18.0/me?fields=id,name,email,picture&access_token=${longLivedTokenData.access_token}`);
+  
+  if (!profileResponse.ok) {
+    const errorText = await profileResponse.text();
+    console.error('Facebook profile fetch failed:', errorText);
+    throw new Error('Failed to fetch user profile');
+  }
+
   const profile = await profileResponse.json();
 
   // Get pages managed by user
@@ -128,7 +173,7 @@ async function handleFacebookCallback(req: Request, supabaseClient: any, userId:
   const pagesData = await pagesResponse.json();
 
   // Store Facebook account
-  await supabaseClient
+  const { error: upsertError } = await supabaseClient
     .from('social_accounts')
     .upsert({
       user_id: userId,
@@ -143,6 +188,11 @@ async function handleFacebookCallback(req: Request, supabaseClient: any, userId:
       is_active: true,
       metadata: { pages: pagesData.data || [] }
     });
+
+  if (upsertError) {
+    console.error('Failed to store Facebook account:', upsertError);
+    throw new Error('Failed to save account information');
+  }
 
   // Store each Facebook page as a separate account
   for (const page of pagesData.data || []) {
@@ -161,31 +211,36 @@ async function handleFacebookCallback(req: Request, supabaseClient: any, userId:
       });
 
     // Check for connected Instagram account
-    const instagramResponse = await fetch(`https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`);
-    const instagramData = await instagramResponse.json();
+    try {
+      const instagramResponse = await fetch(`https://graph.facebook.com/v18.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`);
+      const instagramData = await instagramResponse.json();
 
-    if (instagramData.instagram_business_account) {
-      const igAccountResponse = await fetch(`https://graph.facebook.com/v18.0/${instagramData.instagram_business_account.id}?fields=username,name,profile_picture_url&access_token=${page.access_token}`);
-      const igAccount = await igAccountResponse.json();
+      if (instagramData.instagram_business_account) {
+        const igAccountResponse = await fetch(`https://graph.facebook.com/v18.0/${instagramData.instagram_business_account.id}?fields=username,name,profile_picture_url&access_token=${page.access_token}`);
+        const igAccount = await igAccountResponse.json();
 
-      await supabaseClient
-        .from('social_accounts')
-        .upsert({
-          user_id: userId,
-          platform: 'instagram',
-          platform_user_id: igAccount.id,
-          name: igAccount.name,
-          username: igAccount.username,
-          profile_image: igAccount.profile_picture_url,
-          access_token: longLivedTokenData.access_token,
-          page_access_token: page.access_token,
-          is_active: true,
-          metadata: { 
-            ig_user_id: igAccount.id,
-            connected_page_id: page.id,
-            page_name: page.name
-          }
-        });
+        await supabaseClient
+          .from('social_accounts')
+          .upsert({
+            user_id: userId,
+            platform: 'instagram',
+            platform_user_id: igAccount.id,
+            name: igAccount.name,
+            username: igAccount.username,
+            profile_image: igAccount.profile_picture_url,
+            access_token: longLivedTokenData.access_token,
+            page_access_token: page.access_token,
+            is_active: true,
+            metadata: { 
+              ig_user_id: igAccount.id,
+              connected_page_id: page.id,
+              page_name: page.name
+            }
+          });
+      }
+    } catch (igError) {
+      console.warn('Failed to fetch Instagram account for page:', page.id, igError);
+      // Continue processing other pages even if Instagram fetch fails
     }
   }
 

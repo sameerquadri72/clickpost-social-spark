@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -123,6 +122,8 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         throw new Error('No valid session found. Please log in again.');
       }
 
+      console.log('Calling edge function:', `${platform}-oauth`);
+
       const response = await supabase.functions.invoke(`${platform}-oauth`, {
         body: { action: 'initiate' },
         headers: {
@@ -130,14 +131,26 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         }
       });
 
+      console.log('Edge function response:', response);
+
       if (response.error) {
         console.error('OAuth initiation error:', response.error);
-        throw new Error(response.error.message || 'Failed to initiate OAuth');
+        
+        // Provide more specific error messages based on common issues
+        let errorMessage = response.error.message || 'Failed to initiate OAuth';
+        
+        if (errorMessage.includes('Missing') || errorMessage.includes('undefined')) {
+          errorMessage = `OAuth credentials not configured for ${platform}. Please check that the required environment variables are set in your Supabase project.`;
+        } else if (errorMessage.includes('Unauthorized')) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const { authUrl } = response.data;
       if (!authUrl) {
-        throw new Error('No authorization URL received');
+        throw new Error('No authorization URL received from the server');
       }
 
       console.log('Redirecting to OAuth URL:', authUrl);
@@ -149,6 +162,7 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         description: error instanceof Error ? error.message : "Failed to connect account",
         variant: "destructive",
       });
+      throw error; // Re-throw to allow caller to handle loading states
     }
   };
 

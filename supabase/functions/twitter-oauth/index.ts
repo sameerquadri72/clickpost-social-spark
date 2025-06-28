@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -13,16 +12,31 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
+    // Check required environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const twitterClientId = Deno.env.get('TWITTER_CLIENT_ID');
+    const twitterClientSecret = Deno.env.get('TWITTER_CLIENT_SECRET');
 
-    const authHeader = req.headers.get('Authorization')!;
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase configuration');
+    }
+
+    if (!twitterClientId || !twitterClientSecret) {
+      throw new Error('Missing Twitter OAuth credentials. Please configure TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET in your Supabase project secrets.');
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization header');
+    }
+
     const { data: { user } } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
     
     if (!user) {
-      throw new Error('Unauthorized');
+      throw new Error('Unauthorized - invalid or expired token');
     }
 
     const url = new URL(req.url);
@@ -30,22 +44,28 @@ serve(async (req) => {
 
     switch (action) {
       case 'initiate':
-        return await initiateTwitterAuth(supabaseClient, user.id);
+        return await initiateTwitterAuth(supabaseClient, user.id, supabaseUrl, twitterClientId);
       case 'callback':
-        return await handleTwitterCallback(req, supabaseClient, user.id);
+        return await handleTwitterCallback(req, supabaseClient, user.id, supabaseUrl, twitterClientId, twitterClientSecret);
       default:
-        return new Response('Not found', { status: 404, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: 'Invalid action' }), {
+          status: 404, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
   } catch (error) {
     console.error('Twitter OAuth error:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      details: 'Check that TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET are configured in your Supabase project secrets'
+    }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
 
-async function initiateTwitterAuth(supabaseClient: any, userId: string) {
+async function initiateTwitterAuth(supabaseClient: any, userId: string, supabaseUrl: string, clientId: string) {
   // Twitter OAuth 2.0 PKCE flow
   const stateToken = crypto.randomUUID();
   const codeVerifier = crypto.randomUUID() + crypto.randomUUID();
@@ -57,21 +77,26 @@ async function initiateTwitterAuth(supabaseClient: any, userId: string) {
     .replace(/\//g, '_')
     .replace(/=/g, '');
 
-  const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/twitter-oauth/callback`;
+  const redirectUri = `${supabaseUrl}/functions/v1/twitter-oauth/callback`;
   
-  await supabaseClient
+  const { error: insertError } = await supabaseClient
     .from('oauth_states')
     .insert({
       state_token: stateToken,
       platform: 'twitter',
       user_id: userId,
-      redirect_url: `${new URL(Deno.env.get('SUPABASE_URL') || '').origin}/accounts`,
+      redirect_url: `${new URL(supabaseUrl).origin}/accounts`,
       oauth_token_secret: codeVerifier // Store code verifier
     });
 
+  if (insertError) {
+    console.error('Failed to store OAuth state:', insertError);
+    throw new Error('Failed to initialize OAuth flow');
+  }
+
   const authUrl = new URL('https://twitter.com/i/oauth2/authorize');
   authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('client_id', Deno.env.get('TWITTER_CLIENT_ID') || '');
+  authUrl.searchParams.set('client_id', clientId);
   authUrl.searchParams.set('redirect_uri', redirectUri);
   authUrl.searchParams.set('scope', 'tweet.read tweet.write users.read offline.access');
   authUrl.searchParams.set('state', stateToken);
@@ -83,10 +108,15 @@ async function initiateTwitterAuth(supabaseClient: any, userId: string) {
   });
 }
 
-async function handleTwitterCallback(req: Request, supabaseClient: any, userId: string) {
+async function handleTwitterCallback(req: Request, supabaseClient: any, userId: string, supabaseUrl: string, clientId: string, clientSecret: string) {
   const url = new URL(req.url);
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
+  const error = url.searchParams.get('error');
+
+  if (error) {
+    throw new Error(`Twitter OAuth error: ${error}`);
+  }
 
   if (!code || !state) {
     throw new Error('Missing code or state parameter');
@@ -105,14 +135,14 @@ async function handleTwitterCallback(req: Request, supabaseClient: any, userId: 
     throw new Error('Invalid state parameter');
   }
 
-  const redirectUri = `${Deno.env.get('SUPABASE_URL')}/functions/v1/twitter-oauth/callback`;
+  const redirectUri = `${supabaseUrl}/functions/v1/twitter-oauth/callback`;
 
   // Exchange code for token
   const tokenResponse = await fetch('https://api.twitter.com/2/oauth2/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': `Basic ${btoa(`${Deno.env.get('TWITTER_CLIENT_ID')}:${Deno.env.get('TWITTER_CLIENT_SECRET')}`)}`,
+      'Authorization': `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
     },
     body: new URLSearchParams({
       grant_type: 'authorization_code',
@@ -138,6 +168,8 @@ async function handleTwitterCallback(req: Request, supabaseClient: any, userId: 
   });
 
   if (!profileResponse.ok) {
+    const errorText = await profileResponse.text();
+    console.error('Twitter profile fetch error:', errorText);
     throw new Error('Failed to fetch user profile');
   }
 
@@ -145,7 +177,7 @@ async function handleTwitterCallback(req: Request, supabaseClient: any, userId: 
   const profile = profileData.data;
 
   // Store social account
-  await supabaseClient
+  const { error: upsertError } = await supabaseClient
     .from('social_accounts')
     .upsert({
       user_id: userId,
@@ -159,6 +191,11 @@ async function handleTwitterCallback(req: Request, supabaseClient: any, userId: 
       expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
       is_active: true,
     });
+
+  if (upsertError) {
+    console.error('Failed to store Twitter account:', upsertError);
+    throw new Error('Failed to save account information');
+  }
 
   // Clean up state
   await supabaseClient
