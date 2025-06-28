@@ -124,10 +124,13 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
 
       console.log('Calling edge function:', `${platform}-oauth`);
 
+      // Call the Edge Function with proper method and headers
       const response = await supabase.functions.invoke(`${platform}-oauth`, {
+        method: 'POST',
         body: { action: 'initiate' },
         headers: {
-          Authorization: `Bearer ${session.access_token}`
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
         }
       });
 
