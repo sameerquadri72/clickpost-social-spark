@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -50,17 +49,30 @@ export const Register: React.FC = () => {
     try {
       setLoading(true);
       await register(email, password);
-      navigate('/dashboard');
+      
       toast({
-        title: "Account created!",
-        description: "Welcome to EkClickPost!",
+        title: "Registration Successful!",
+        description: "Please check your email to confirm your account before signing in.",
       });
+      
+      // Redirect to login page instead of dashboard
+      navigate('/login');
     } catch (error) {
-      toast({
-        title: "Registration failed",
-        description: "Please try again with different credentials.",
-        variant: "destructive",
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+      
+      if (errorMessage.includes('email')) {
+        toast({
+          title: "Registration failed",
+          description: "This email is already registered. Please try signing in instead.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Registration failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -102,7 +114,7 @@ export const Register: React.FC = () => {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Create a password"
+                  placeholder="Create a password (min 6 characters)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

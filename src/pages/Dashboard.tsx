@@ -1,69 +1,63 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Plus, Settings, User } from 'lucide-react';
-
-const statsData = [
-  {
-    title: 'Posts Scheduled',
-    value: '24',
-    change: '+12%',
-    icon: Calendar,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-100'
-  },
-  {
-    title: 'Connected Accounts',
-    value: '8',
-    change: '+2',
-    icon: User,
-    color: 'text-green-600',
-    bgColor: 'bg-green-100'
-  },
-  {
-    title: 'Posts This Month',
-    value: '156',
-    change: '+23%',
-    icon: Plus,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-100'
-  },
-  {
-    title: 'Engagement Rate',
-    value: '4.2%',
-    change: '+0.8%',
-    icon: Settings,
-    color: 'text-orange-600',
-    bgColor: 'bg-orange-100'
-  }
-];
-
-const recentPosts = [
-  {
-    id: 1,
-    content: 'Just launched our new product line! 🚀 Check it out on our website.',
-    platform: 'Facebook',
-    scheduledFor: '2024-01-15 2:00 PM',
-    status: 'scheduled'
-  },
-  {
-    id: 2,
-    content: 'Behind the scenes at our latest photoshoot ✨',
-    platform: 'Instagram',
-    scheduledFor: '2024-01-15 4:30 PM',
-    status: 'scheduled'
-  },
-  {
-    id: 3,
-    content: 'Excited to announce our partnership with @techcorp!',
-    platform: 'X',
-    scheduledFor: '2024-01-16 10:00 AM',
-    status: 'draft'
-  }
-];
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Plus, Users, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { usePosts } from '@/contexts/PostsContext';
+import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
+import { format, isThisMonth, isToday, addDays } from 'date-fns';
 
 export const Dashboard: React.FC = () => {
+  const { scheduledPosts } = usePosts();
+  const { accounts } = useSocialAccounts();
+
+  // Calculate real metrics from actual data
+  const activeAccounts = accounts.filter(account => account.is_active);
+  const postsThisMonth = scheduledPosts.filter(post => isThisMonth(post.scheduledFor));
+  const publishedPosts = scheduledPosts.filter(post => post.status === 'published');
+  const todaysPosts = scheduledPosts.filter(post => isToday(post.scheduledFor));
+  const upcomingPosts = scheduledPosts.filter(post => {
+    const now = new Date();
+    const weekFromNow = addDays(now, 7);
+    return post.scheduledFor >= now && post.scheduledFor <= weekFromNow;
+  }).slice(0, 5);
+
+  const statsData = [
+    {
+      title: 'Posts Scheduled',
+      value: scheduledPosts.length.toString(),
+      change: scheduledPosts.length > 0 ? `${scheduledPosts.length} total` : 'No posts yet',
+      icon: Calendar,
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-100'
+    },
+    {
+      title: 'Connected Accounts',
+      value: activeAccounts.length.toString(),
+      change: activeAccounts.length > 0 ? `${activeAccounts.length} active` : 'Connect accounts',
+      icon: Users,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100'
+    },
+    {
+      title: 'Posts This Month',
+      value: postsThisMonth.length.toString(),
+      change: postsThisMonth.length > 0 ? `${postsThisMonth.length} scheduled` : 'No posts this month',
+      icon: Plus,
+      color: 'text-purple-600',
+      bgColor: 'bg-purple-100'
+    },
+    {
+      title: 'Published Posts',
+      value: publishedPosts.length.toString(),
+      change: publishedPosts.length > 0 ? `${publishedPosts.length} published` : 'No posts published',
+      icon: CheckCircle,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100'
+    }
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -73,12 +67,15 @@ export const Dashboard: React.FC = () => {
             Monitor your social media performance and manage your content
           </p>
         </div>
-        <Button className="gradient-bg text-white hover:opacity-90">
-          <Plus className="h-4 w-4 mr-2" />
-          Create Post
-        </Button>
+        <Link to="/create">
+          <Button className="gradient-bg text-white hover:opacity-90">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Post
+          </Button>
+        </Link>
       </div>
 
+      {/* Real Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statsData.map((stat, index) => (
           <Card key={index} className="hover-lift border-0 shadow-md">
@@ -105,60 +102,162 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Activity */}
         <Card className="border-0 shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               Recent Activity
-              <Button variant="outline" size="sm">
-                View All
-              </Button>
+              <Link to="/calendar">
+                <Button variant="outline" size="sm">
+                  View Calendar
+                </Button>
+              </Link>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentPosts.map((post) => (
-                <div key={post.id} className="flex items-start gap-4 p-4 rounded-lg bg-slate-50">
-                  <div className="flex-1">
-                    <p className="text-sm text-slate-900 mb-2">
-                      {post.content}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-slate-500">
-                      <span className="px-2 py-1 bg-brand-100 text-brand-700 rounded-full">
-                        {post.platform}
-                      </span>
-                      <span>{post.scheduledFor}</span>
-                      <span className={`px-2 py-1 rounded-full ${
-                        post.status === 'scheduled' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {post.status}
-                      </span>
+              {scheduledPosts.length > 0 ? (
+                scheduledPosts.slice(0, 3).map((post) => (
+                  <div key={post.id} className="flex items-start gap-4 p-4 rounded-lg bg-slate-50">
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-900 mb-2 line-clamp-2">
+                        {post.content}
+                      </p>
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <div className="flex gap-1">
+                          {post.platforms.map((platform) => (
+                            <span key={platform} className="px-2 py-1 bg-brand-100 text-brand-700 rounded-full">
+                              {platform}
+                            </span>
+                          ))}
+                        </div>
+                        <span>{format(post.scheduledFor, 'MMM d, yyyy HH:mm')}</span>
+                        <span className={`px-2 py-1 rounded-full ${
+                          post.status === 'scheduled' 
+                            ? 'bg-green-100 text-green-700' 
+                            : post.status === 'published'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {post.status}
+                        </span>
+                      </div>
                     </div>
                   </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No posts created yet</p>
+                  <Link to="/create">
+                    <Button variant="outline" className="mt-4" size="sm">
+                      Create Your First Post
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Upcoming Posts */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Upcoming Posts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {upcomingPosts.length > 0 ? (
+                upcomingPosts.map((post) => (
+                  <div key={post.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-sm line-clamp-1">{post.title}</h4>
+                      <p className="text-xs text-slate-600 mt-1">
+                        {format(post.scheduledFor, 'MMM d, yyyy HH:mm')}
+                      </p>
+                      <div className="flex gap-1 mt-2">
+                        {post.platforms.map((platform) => (
+                          <Badge key={platform} variant="secondary" className="text-xs">
+                            {platform}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <Badge variant={post.status === 'scheduled' ? 'default' : 'outline'}>
+                      {post.status}
+                    </Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No upcoming posts</p>
+                  <Link to="/create">
+                    <Button variant="outline" className="mt-4" size="sm">
+                      Schedule a Post
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      {activeAccounts.length === 0 && (
+        <Card className="border-0 shadow-md bg-gradient-to-r from-brand-50 to-purple-50">
+          <CardContent className="p-6">
+            <div className="text-center">
+              <Users className="h-12 w-12 mx-auto mb-4 text-brand-600" />
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                Connect Your Social Media Accounts
+              </h3>
+              <p className="text-slate-600 mb-4">
+                Get started by connecting your social media accounts to begin posting content.
+              </p>
+              <Link to="/accounts">
+                <Button className="gradient-bg text-white">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Connect Accounts
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Today's Posts */}
+      {todaysPosts.length > 0 && (
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Today's Posts ({todaysPosts.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {todaysPosts.map((post) => (
+                <div key={post.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-sm">{post.title}</h4>
+                    <p className="text-xs text-slate-600 mt-1">
+                      {format(post.scheduledFor, 'HH:mm')} • {post.platforms.join(', ')}
+                    </p>
+                  </div>
+                  <Badge variant={post.status === 'published' ? 'default' : 'secondary'}>
+                    {post.status}
+                  </Badge>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-0 shadow-md">
-          <CardHeader>
-            <CardTitle>Upcoming Posts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="text-center py-8 text-slate-500">
-                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No upcoming posts scheduled</p>
-                <Button variant="outline" className="mt-4" size="sm">
-                  Schedule a Post
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   );
 };
