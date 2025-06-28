@@ -71,28 +71,31 @@ export const Accounts: React.FC = () => {
 
   // Handle OAuth success/error messages from URL params
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get('success');
-    const error = urlParams.get('error');
+    // Only access window object in browser environment
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const success = urlParams.get('success');
+      const error = urlParams.get('error');
 
-    if (success) {
-      toast({
-        title: "Account Connected",
-        description: `Your ${success} account has been successfully connected.`,
-      });
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
+      if (success) {
+        toast({
+          title: "Account Connected",
+          description: `Your ${success} account has been successfully connected.`,
+        });
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
 
-    if (error) {
-      setLastError(error);
-      toast({
-        title: "Connection Failed",
-        description: error,
-        variant: "destructive",
-      });
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      if (error) {
+        setLastError(error);
+        toast({
+          title: "Connection Failed",
+          description: error,
+          variant: "destructive",
+        });
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
   }, [toast]);
 
@@ -352,17 +355,17 @@ export const Accounts: React.FC = () => {
             <h4>Step 1: Create OAuth Applications</h4>
             <p>Create developer applications for each platform you want to support:</p>
             <ul>
-              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
-              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Facebook Developer Console</a></li>
-              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Twitter Developer Portal</a></li>
+              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
+              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Facebook Developer Console</a></li>
+              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a></li>
             </ul>
             
             <h4>Step 2: Configure OAuth Redirect URIs</h4>
             <p>In each OAuth application, set the redirect URI to:</p>
             <div className="bg-slate-100 p-3 rounded-lg font-mono text-sm">
-              <p>LinkedIn: <code>{window.location.origin}/functions/v1/linkedin-oauth/callback</code></p>
-              <p>Facebook: <code>{window.location.origin}/functions/v1/facebook-oauth/callback</code></p>
-              <p>Twitter: <code>{window.location.origin}/functions/v1/twitter-oauth/callback</code></p>
+              <p>LinkedIn: <code>{typeof window !== 'undefined' ? window.location.origin : 'YOUR_DOMAIN'}/functions/v1/linkedin-oauth/callback</code></p>
+              <p>Facebook: <code>{typeof window !== 'undefined' ? window.location.origin : 'YOUR_DOMAIN'}/functions/v1/facebook-oauth/callback</code></p>
+              <p>Twitter: <code>{typeof window !== 'undefined' ? window.location.origin : 'YOUR_DOMAIN'}/functions/v1/twitter-oauth/callback</code></p>
             </div>
             
             <h4>Step 3: Configure Supabase Secrets</h4>
