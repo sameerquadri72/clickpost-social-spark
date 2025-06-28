@@ -139,27 +139,39 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
         // Provide more specific error messages based on common issues
         let errorMessage = response.error.message || 'Failed to initiate OAuth';
         
-        if (errorMessage.includes('Missing') || errorMessage.includes('undefined')) {
-          errorMessage = `OAuth credentials not configured for ${platform}. Please check that the required environment variables are set in your Supabase project.`;
+        if (errorMessage.includes('Missing') || errorMessage.includes('credentials') || errorMessage.includes('CLIENT_ID') || errorMessage.includes('CLIENT_SECRET') || errorMessage.includes('APP_ID') || errorMessage.includes('APP_SECRET')) {
+          errorMessage = `OAuth credentials not configured for ${platform.charAt(0).toUpperCase() + platform.slice(1)}. Please configure the required API credentials in your Supabase project secrets.`;
         } else if (errorMessage.includes('Unauthorized')) {
           errorMessage = 'Authentication failed. Please log in again.';
+        } else if (errorMessage.includes('Edge Function returned a non-2xx status code')) {
+          errorMessage = `OAuth service for ${platform.charAt(0).toUpperCase() + platform.slice(1)} is not properly configured. Please check that the required API credentials are set in your Supabase project secrets.`;
         }
         
         throw new Error(errorMessage);
       }
 
-      const { authUrl } = response.data;
-      if (!authUrl) {
-        throw new Error('No authorization URL received from the server');
+      // Check if response has data and authUrl
+      if (!response.data || !response.data.authUrl) {
+        throw new Error(`OAuth service for ${platform.charAt(0).toUpperCase() + platform.slice(1)} is not properly configured. Please check that the required API credentials are set in your Supabase project secrets.`);
       }
 
+      const { authUrl } = response.data;
       console.log('Redirecting to OAuth URL:', authUrl);
       window.location.href = authUrl;
     } catch (error) {
       console.error('Failed to connect account:', error);
+      
+      // Enhanced error message for better user experience
+      let userFriendlyMessage = error instanceof Error ? error.message : "Failed to connect account";
+      
+      // If it's a generic error, provide more context
+      if (userFriendlyMessage === "Failed to connect account" || userFriendlyMessage.includes('Edge Function returned a non-2xx status code')) {
+        userFriendlyMessage = `Unable to connect to ${platform.charAt(0).toUpperCase() + platform.slice(1)}. This usually means the OAuth credentials are not configured in your Supabase project. Please check the setup instructions below.`;
+      }
+      
       toast({
         title: "Connection Failed",
-        description: error instanceof Error ? error.message : "Failed to connect account",
+        description: userFriendlyMessage,
         variant: "destructive",
       });
       throw error; // Re-throw to allow caller to handle loading states

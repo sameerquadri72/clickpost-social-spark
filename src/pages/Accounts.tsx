@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,8 @@ import {
   AlertCircle,
   Trash2,
   ExternalLink,
-  Loader2
+  Loader2,
+  Settings
 } from 'lucide-react';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { useToast } from '@/hooks/use-toast';
@@ -95,6 +95,8 @@ export const Accounts: React.FC = () => {
       await connectAccount(platformId);
     } catch (error) {
       console.error('Connection error:', error);
+      // Error is already handled in the context with toast notification
+    } finally {
       setConnectingPlatform(null);
     }
   };
@@ -126,11 +128,16 @@ export const Accounts: React.FC = () => {
         </p>
       </div>
 
-      {/* Environment Variables Alert */}
+      {/* Configuration Status Alert */}
       <Alert>
-        <AlertCircle className="h-4 w-4" />
+        <Settings className="h-4 w-4" />
         <AlertDescription>
-          <strong>Setup Required:</strong> To connect real social media accounts, you need to configure API credentials as Supabase secrets.
+          <strong>Configuration Required:</strong> To connect social media accounts, OAuth credentials must be configured as Supabase secrets. 
+          {connectedAccounts.length === 0 && (
+            <span className="block mt-1 text-sm">
+              If connection attempts fail, check that the required API credentials are properly set in your Supabase project settings.
+            </span>
+          )}
         </AlertDescription>
       </Alert>
 
@@ -322,6 +329,21 @@ export const Accounts: React.FC = () => {
               <li>Facebook: <code>{window.location.origin}/functions/v1/facebook-oauth/callback</code></li>
               <li>Twitter: <code>{window.location.origin}/functions/v1/twitter-oauth/callback</code></li>
             </ul>
+            
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <h5 className="font-medium text-amber-800">Troubleshooting Connection Issues:</h5>
+              <p className="text-sm text-amber-700 mt-1">
+                If you're getting "Edge Function returned a non-2xx status code" errors, this typically means:
+              </p>
+              <ul className="text-sm text-amber-700 mt-2 ml-4">
+                <li>• The required OAuth credentials are not configured in Supabase secrets</li>
+                <li>• The Edge Functions cannot access the environment variables</li>
+                <li>• The OAuth app configuration is incorrect</li>
+              </ul>
+              <p className="text-sm text-amber-700 mt-2">
+                Double-check that all required secrets are properly set in your Supabase project settings under "Project Settings" → "Edge Functions" → "Secrets".
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
