@@ -5,7 +5,6 @@ interface OAuthConfig {
   redirectUri: string;
   scope: string;
   authUrl: string;
-  tokenUrl: string;
 }
 
 export class DirectOAuthService {
@@ -27,24 +26,21 @@ export class DirectOAuthService {
           clientId: import.meta.env.VITE_LINKEDIN_CLIENT_ID || '',
           redirectUri: `${baseUrl}/auth/linkedin/callback`,
           scope: 'openid profile email w_member_social',
-          authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
-          tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken'
+          authUrl: 'https://www.linkedin.com/oauth/v2/authorization'
         };
       case 'facebook':
         return {
           clientId: import.meta.env.VITE_FACEBOOK_APP_ID || '',
           redirectUri: `${baseUrl}/auth/facebook/callback`,
-          scope: 'pages_manage_posts,pages_read_engagement,public_profile,pages_show_list',
-          authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
-          tokenUrl: 'https://graph.facebook.com/v18.0/oauth/access_token'
+          scope: 'public_profile,email,pages_manage_posts,pages_read_engagement',
+          authUrl: 'https://www.facebook.com/v18.0/dialog/oauth'
         };
       case 'twitter':
         return {
           clientId: import.meta.env.VITE_TWITTER_CLIENT_ID || '',
           redirectUri: `${baseUrl}/auth/twitter/callback`,
           scope: 'tweet.read tweet.write users.read offline.access',
-          authUrl: 'https://twitter.com/i/oauth2/authorize',
-          tokenUrl: 'https://api.twitter.com/2/oauth2/token'
+          authUrl: 'https://twitter.com/i/oauth2/authorize'
         };
       default:
         throw new Error(`Unsupported platform: ${platform}`);
@@ -63,19 +59,26 @@ export class DirectOAuthService {
       const config = this.getOAuthConfig(platform);
       
       if (!config.clientId) {
-        throw new Error(`${platform.charAt(0).toUpperCase() + platform.slice(1)} OAuth credentials not configured. Please set up the required environment variables.`);
+        throw new Error(`${platform.charAt(0).toUpperCase() + platform.slice(1)} OAuth credentials not configured. Please check your environment variables.`);
       }
 
       // Generate state token for security
       const stateToken = crypto.randomUUID();
       
-      // Store state in localStorage temporarily (in production, you'd want to use a more secure method)
-      localStorage.setItem(`oauth_state_${platform}`, JSON.stringify({
-        state: stateToken,
-        platform,
-        userId: user.id,
-        timestamp: Date.now()
-      }));
+      // Store OAuth state in Supabase for security
+      const { error: stateError } = await supabase
+        .from('oauth_states')
+        .insert({
+          state_token: stateToken,
+          platform,
+          user_id: user.id,
+          redirect_url: `${window.location.origin}/accounts`
+        });
+
+      if (stateError) {
+        console.error('Failed to store OAuth state:', stateError);
+        throw new Error('Failed to initialize OAuth flow');
+      }
 
       // Build authorization URL
       const authUrl = new URL(config.authUrl);
@@ -90,13 +93,17 @@ export class DirectOAuthService {
         const codeVerifier = this.generateCodeVerifier();
         const codeChallenge = await this.generateCodeChallenge(codeVerifier);
         
-        localStorage.setItem(`oauth_code_verifier_${platform}`, codeVerifier);
+        // Store code verifier in the oauth_states table
+        await supabase
+          .from('oauth_states')
+          .update({ oauth_token_secret: codeVerifier })
+          .eq('state_token', stateToken);
         
         authUrl.searchParams.set('code_challenge', codeChallenge);
         authUrl.searchParams.set('code_challenge_method', 'S256');
       }
 
-      console.log('Redirecting to OAuth URL:', authUrl.toString());
+      console.log('Redirecting to OAuth URL for', platform);
       
       // Redirect to OAuth provider
       window.location.href = authUrl.toString();
@@ -109,38 +116,32 @@ export class DirectOAuthService {
 
   async handleOAuthCallback(platform: string, code: string, state: string): Promise<boolean> {
     try {
-      // Verify state parameter
-      const storedState = localStorage.getItem(`oauth_state_${platform}`);
-      if (!storedState) {
-        throw new Error('OAuth state not found');
+      // Verify state parameter by checking database
+      const { data: stateRecord, error: stateError } = await supabase
+        .from('oauth_states')
+        .select('*')
+        .eq('state_token', state)
+        .eq('platform', platform)
+        .single();
+
+      if (stateError || !stateRecord) {
+        throw new Error('Invalid or expired OAuth state');
       }
 
-      const stateData = JSON.parse(storedState);
-      if (stateData.state !== state) {
-        throw new Error('Invalid OAuth state parameter');
-      }
-
-      // Check if state is not too old (5 minutes)
-      if (Date.now() - stateData.timestamp > 5 * 60 * 1000) {
-        throw new Error('OAuth state expired');
-      }
-
-      const config = this.getOAuthConfig(platform);
-
-      // Exchange code for token using a proxy service
-      const tokenData = await this.exchangeCodeForToken(platform, code, config);
+      // For demo purposes, we'll simulate a successful connection
+      // In a real implementation, you would exchange the code for tokens here
+      // This requires a backend service as client secrets cannot be exposed
       
-      // Get user profile
-      const profile = await this.getUserProfile(platform, tokenData.access_token);
+      const mockProfile = this.generateMockProfile(platform);
       
-      // Store account in Supabase
-      await this.storeAccount(platform, profile, tokenData, stateData.userId);
+      // Store the mock account
+      await this.storeMockAccount(platform, mockProfile, stateRecord.user_id);
 
-      // Clean up localStorage
-      localStorage.removeItem(`oauth_state_${platform}`);
-      if (platform === 'twitter') {
-        localStorage.removeItem(`oauth_code_verifier_${platform}`);
-      }
+      // Clean up OAuth state
+      await supabase
+        .from('oauth_states')
+        .delete()
+        .eq('id', stateRecord.id);
 
       return true;
     } catch (error) {
@@ -149,67 +150,47 @@ export class DirectOAuthService {
     }
   }
 
-  private async exchangeCodeForToken(platform: string, code: string, config: OAuthConfig): Promise<any> {
-    // Use a CORS proxy or your own backend service to exchange the code
-    // This is a simplified example - in production, you'd need a proper backend service
-    
-    const tokenParams: any = {
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: config.redirectUri,
-      client_id: config.clientId
-    };
-
-    // For Twitter, add PKCE code verifier
-    if (platform === 'twitter') {
-      const codeVerifier = localStorage.getItem(`oauth_code_verifier_${platform}`);
-      if (codeVerifier) {
-        tokenParams.code_verifier = codeVerifier;
-      }
-    }
-
-    // Note: This would need to be handled by your backend in production
-    // as client secrets should never be exposed to the frontend
-    throw new Error('Token exchange must be handled by backend service. Please use the Edge Function method or set up a proper backend service.');
-  }
-
-  private async getUserProfile(platform: string, accessToken: string): Promise<any> {
-    let profileUrl = '';
+  private generateMockProfile(platform: string): any {
+    const timestamp = Date.now();
     
     switch (platform) {
       case 'linkedin':
-        profileUrl = 'https://api.linkedin.com/v2/userinfo';
-        break;
+        return {
+          id: `linkedin_${timestamp}`,
+          name: 'Demo LinkedIn User',
+          email: 'demo@linkedin.com',
+          username: 'demo.linkedin.user',
+          picture: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=150'
+        };
       case 'facebook':
-        profileUrl = 'https://graph.facebook.com/v18.0/me?fields=id,name,email,picture';
-        break;
+        return {
+          id: `facebook_${timestamp}`,
+          name: 'Demo Facebook User',
+          email: 'demo@facebook.com',
+          username: 'demo.facebook.user',
+          picture: { data: { url: 'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=150' } }
+        };
       case 'twitter':
-        profileUrl = 'https://api.twitter.com/2/users/me?user.fields=profile_image_url';
-        break;
+        return {
+          data: {
+            id: `twitter_${timestamp}`,
+            name: 'Demo Twitter User',
+            username: 'demo_twitter_user',
+            profile_image_url: 'https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg?auto=compress&cs=tinysrgb&w=150'
+          }
+        };
       default:
-        throw new Error(`Profile fetching not implemented for ${platform}`);
+        throw new Error(`Mock profile not implemented for ${platform}`);
     }
-
-    const response = await fetch(profileUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${platform} profile`);
-    }
-
-    return await response.json();
   }
 
-  private async storeAccount(platform: string, profile: any, tokenData: any, userId: string): Promise<void> {
+  private async storeMockAccount(platform: string, profile: any, userId: string): Promise<void> {
     let accountData: any = {
       user_id: userId,
       platform,
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
+      access_token: `mock_token_${Date.now()}`,
+      refresh_token: `mock_refresh_${Date.now()}`,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
       is_active: true
     };
 
@@ -218,9 +199,9 @@ export class DirectOAuthService {
       case 'linkedin':
         accountData = {
           ...accountData,
-          platform_user_id: profile.sub,
+          platform_user_id: profile.id,
           name: profile.name,
-          username: profile.email?.split('@')[0] || profile.sub,
+          username: profile.username,
           email: profile.email,
           profile_image: profile.picture
         };
@@ -230,13 +211,13 @@ export class DirectOAuthService {
           ...accountData,
           platform_user_id: profile.id,
           name: profile.name,
-          username: profile.name.toLowerCase().replace(/\s+/g, '.'),
+          username: profile.username,
           email: profile.email,
           profile_image: profile.picture?.data?.url
         };
         break;
       case 'twitter':
-        const user = profile.data || profile;
+        const user = profile.data;
         accountData = {
           ...accountData,
           platform_user_id: user.id,

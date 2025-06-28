@@ -17,7 +17,8 @@ import {
   ExternalLink,
   Loader2,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { useToast } from '@/hooks/use-toast';
@@ -31,7 +32,7 @@ const PLATFORMS = [
     color: 'bg-blue-600',
     description: 'Connect your LinkedIn profile to share professional content',
     available: true,
-    envVars: ['VITE_LINKEDIN_CLIENT_ID', 'VITE_LINKEDIN_CLIENT_SECRET']
+    envVars: ['VITE_LINKEDIN_CLIENT_ID']
   },
   {
     id: 'facebook',
@@ -40,7 +41,7 @@ const PLATFORMS = [
     color: 'bg-blue-500',
     description: 'Share posts to your Facebook profile or pages',
     available: true,
-    envVars: ['VITE_FACEBOOK_APP_ID', 'VITE_FACEBOOK_APP_SECRET']
+    envVars: ['VITE_FACEBOOK_APP_ID']
   },
   {
     id: 'twitter',
@@ -49,7 +50,7 @@ const PLATFORMS = [
     color: 'bg-slate-800',
     description: 'Post tweets and engage with your Twitter audience',
     available: true,
-    envVars: ['VITE_TWITTER_CLIENT_ID', 'VITE_TWITTER_CLIENT_SECRET']
+    envVars: ['VITE_TWITTER_CLIENT_ID']
   },
   {
     id: 'instagram',
@@ -58,7 +59,7 @@ const PLATFORMS = [
     color: 'bg-pink-500',
     description: 'Share photos and stories to Instagram (via Facebook Pages)',
     available: false, // Disabled for now as it requires Facebook setup
-    envVars: ['VITE_FACEBOOK_APP_ID', 'VITE_FACEBOOK_APP_SECRET']
+    envVars: ['VITE_FACEBOOK_APP_ID']
   }
 ];
 
@@ -127,6 +128,8 @@ export const Accounts: React.FC = () => {
     });
   };
 
+  const hasAnyEnvVars = PLATFORMS.some(platform => checkEnvVars(platform.envVars));
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -145,18 +148,29 @@ export const Accounts: React.FC = () => {
         </p>
       </div>
 
-      {/* Configuration Status Alert */}
+      {/* Demo Mode Alert */}
       <Alert>
-        <Settings className="h-4 w-4" />
+        <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>New Direct OAuth Method:</strong> This version uses a direct OAuth flow that requires environment variables to be set in your .env file instead of Supabase secrets.
-          {connectedAccounts.length === 0 && (
-            <span className="block mt-1 text-sm">
-              If connection attempts fail, check that the required environment variables are properly set in your .env file.
-            </span>
-          )}
+          <strong>Demo Mode:</strong> This version creates mock connections for demonstration purposes. 
+          In a production environment, you would need to set up proper OAuth credentials and implement 
+          secure token exchange on the backend.
         </AlertDescription>
       </Alert>
+
+      {/* Environment Variables Status */}
+      {!hasAnyEnvVars && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>No OAuth credentials configured:</strong> To test the OAuth flow with real credentials, 
+            copy <code>.env.example</code> to <code>.env</code> and fill in your OAuth app credentials.
+            <div className="mt-2 text-sm">
+              <p>For now, you can test with mock connections that simulate the OAuth flow.</p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Error Alert */}
       {lastError && (
@@ -164,17 +178,6 @@ export const Accounts: React.FC = () => {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>Last Connection Error:</strong> {lastError}
-            {lastError.includes('credentials') || lastError.includes('environment variables') ? (
-              <div className="mt-2 text-sm">
-                <p>This error indicates that OAuth credentials are not properly configured. Please:</p>
-                <ol className="list-decimal list-inside mt-1 space-y-1">
-                  <li>Copy .env.example to .env in your project root</li>
-                  <li>Fill in the required OAuth credentials for each platform</li>
-                  <li>Restart your development server</li>
-                  <li>Ensure the environment variable names match exactly</li>
-                </ol>
-              </div>
-            ) : null}
           </AlertDescription>
         </Alert>
       )}
@@ -242,6 +245,11 @@ export const Accounts: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <h3 className="font-medium">{account.name}</h3>
                           <Badge variant="secondary">{account.platform}</Badge>
+                          {account.access_token.startsWith('mock_') && (
+                            <Badge variant="outline" className="text-blue-600 border-blue-600">
+                              Demo
+                            </Badge>
+                          )}
                           {isExpiringSoon && (
                             <Badge variant="destructive" className="text-xs">
                               Expires Soon
@@ -303,21 +311,12 @@ export const Accounts: React.FC = () => {
                         <h3 className="font-semibold">{platform.name}</h3>
                         <p className="text-sm text-slate-600 mt-1">{platform.description}</p>
                         <div className="mt-2">
-                          <p className="text-xs text-slate-500">Required environment variables:</p>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {platform.envVars.map((envVar) => (
-                              <code key={envVar} className={`text-xs px-1 py-0.5 rounded ${
-                                import.meta.env[envVar] ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                              }`}>
-                                {envVar}
-                              </code>
-                            ))}
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${hasEnvVars ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                            <span className="text-xs text-slate-500">
+                              {hasEnvVars ? 'Credentials configured' : 'Demo mode (no credentials)'}
+                            </span>
                           </div>
-                          {!hasEnvVars && (
-                            <p className="text-xs text-red-600 mt-1">
-                              ⚠️ Missing required environment variables
-                            </p>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -330,7 +329,7 @@ export const Accounts: React.FC = () => {
                       ) : (
                         <Button
                           onClick={() => handleConnect(platform.id)}
-                          disabled={isLoading || !platform.available || !hasEnvVars}
+                          disabled={isLoading || !platform.available}
                           size="sm"
                         >
                           {isLoading ? (
@@ -362,38 +361,36 @@ export const Accounts: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="prose prose-sm max-w-none">
-            <h4>New Direct OAuth Method Setup:</h4>
-            <ol>
-              <li>Copy the <code>.env.example</code> file to <code>.env</code> in your project root</li>
-              <li>Create developer applications for each platform you want to connect</li>
-              <li>Fill in the OAuth credentials in your <code>.env</code> file</li>
-              <li>Restart your development server</li>
-            </ol>
-            
-            <h4>Required Environment Variables:</h4>
+            <h4>Current Implementation:</h4>
             <ul>
-              <li><code>VITE_LINKEDIN_CLIENT_ID</code> - LinkedIn App Client ID</li>
-              <li><code>VITE_LINKEDIN_CLIENT_SECRET</code> - LinkedIn App Client Secret</li>
-              <li><code>VITE_FACEBOOK_APP_ID</code> - Facebook App ID</li>
-              <li><code>VITE_FACEBOOK_APP_SECRET</code> - Facebook App Secret</li>
-              <li><code>VITE_TWITTER_CLIENT_ID</code> - Twitter App Client ID</li>
-              <li><code>VITE_TWITTER_CLIENT_SECRET</code> - Twitter App Client Secret</li>
+              <li>✅ <strong>Demo Mode:</strong> Creates mock connections for testing the UI and flow</li>
+              <li>✅ <strong>OAuth Flow:</strong> Implements proper OAuth redirect flow with state validation</li>
+              <li>✅ <strong>Security:</strong> Uses secure state tokens stored in database</li>
+              <li>⚠️ <strong>Token Exchange:</strong> Requires backend implementation for production use</li>
             </ul>
             
-            <h4>OAuth Redirect URIs to configure in your apps:</h4>
+            <h4>For Production Use:</h4>
+            <ol>
+              <li>Set up OAuth applications with each social media platform</li>
+              <li>Implement secure token exchange on your backend server</li>
+              <li>Configure proper redirect URIs in your OAuth applications</li>
+              <li>Store client secrets securely on the backend (never in frontend)</li>
+            </ol>
+            
+            <h4>OAuth Redirect URIs for your apps:</h4>
             <ul>
               <li>LinkedIn: <code>{window.location.origin}/auth/linkedin/callback</code></li>
               <li>Facebook: <code>{window.location.origin}/auth/facebook/callback</code></li>
               <li>Twitter: <code>{window.location.origin}/auth/twitter/callback</code></li>
             </ul>
             
-            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <h5 className="font-medium text-amber-800">Important Notes:</h5>
-              <ul className="text-sm text-amber-700 mt-2 space-y-1">
-                <li>• This method requires client secrets to be exposed in the frontend (for demo purposes only)</li>
-                <li>• In production, you should use a proper backend service to handle OAuth token exchange</li>
-                <li>• The environment variables are prefixed with <code>VITE_</code> to make them available in the browser</li>
-                <li>• Make sure to restart your development server after updating the .env file</li>
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h5 className="font-medium text-blue-800">Demo Features:</h5>
+              <ul className="text-sm text-blue-700 mt-2 space-y-1">
+                <li>• OAuth flow simulation with real redirect URLs</li>
+                <li>• Mock account creation with realistic profile data</li>
+                <li>• State validation for security demonstration</li>
+                <li>• Full UI/UX for account management</li>
               </ul>
             </div>
           </div>

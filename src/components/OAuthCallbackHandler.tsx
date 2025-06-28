@@ -60,7 +60,7 @@ export const OAuthCallbackHandler: React.FC = () => {
 
         // Redirect to accounts page after a short delay
         setTimeout(() => {
-          navigate('/accounts');
+          navigate('/accounts?success=' + platform);
         }, 2000);
 
       } catch (error) {
@@ -128,6 +128,16 @@ export const OAuthCallbackHandler: React.FC = () => {
                 <div>
                   <p className="text-sm font-medium text-red-800">Error Details:</p>
                   <p className="text-sm text-red-700 mt-1">{errorDetails}</p>
+                  {errorDetails.includes('credentials') && (
+                    <div className="mt-2 text-xs text-red-600">
+                      <p>Make sure you have set up the following environment variables:</p>
+                      <ul className="list-disc list-inside mt-1">
+                        <li>VITE_LINKEDIN_CLIENT_ID</li>
+                        <li>VITE_FACEBOOK_APP_ID</li>
+                        <li>VITE_TWITTER_CLIENT_ID</li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
