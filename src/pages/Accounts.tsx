@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -78,7 +79,7 @@ export const Accounts: React.FC = () => {
     if (success) {
       toast({
         title: "Account Connected",
-        description: `Your ${success || ''} account has been successfully connected.`,
+        description: `Your ${success || 'social media'} account has been successfully connected.`,
       });
       // Clean up URL
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -88,7 +89,7 @@ export const Accounts: React.FC = () => {
       setLastError(error);
       toast({
         title: "Connection Failed",
-        description: error || '',
+        description: error || 'Failed to connect account',
         variant: "destructive",
       });
       // Clean up URL
@@ -115,9 +116,11 @@ export const Accounts: React.FC = () => {
     await disconnectAccount(accountId);
   };
 
-  const connectedAccounts = accounts.filter(account => account.is_active);
-  const expiringSoonAccounts = accounts.filter(a => 
-    a.expires_at && new Date(a.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  // Ensure accounts is always an array
+  const safeAccounts = Array.isArray(accounts) ? accounts : [];
+  const connectedAccounts = safeAccounts.filter(account => account?.is_active);
+  const expiringSoonAccounts = safeAccounts.filter(a => 
+    a?.expires_at && new Date(a.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   );
 
   if (loading) {
@@ -161,7 +164,7 @@ export const Accounts: React.FC = () => {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>Connection Error:</strong> {lastError}
-            {lastError.includes('credentials') && (
+            {(lastError || '').includes('credentials') && (
               <div className="mt-2 text-sm">
                 <p>Required Supabase secrets for each platform:</p>
                 <ul className="list-disc list-inside mt-1 space-y-1">
@@ -193,7 +196,7 @@ export const Accounts: React.FC = () => {
             <div className="flex items-center space-x-2">
               <CheckCircle className="h-5 w-5 text-green-600" />
               <div>
-                <p className="text-2xl font-bold">{accounts.filter(a => a.is_active).length}</p>
+                <p className="text-2xl font-bold">{safeAccounts.filter(a => a?.is_active).length}</p>
                 <p className="text-sm text-slate-600">Active Connections</p>
               </div>
             </div>
@@ -221,33 +224,33 @@ export const Accounts: React.FC = () => {
           <CardContent>
             <div className="space-y-4">
               {connectedAccounts.map((account) => {
-                const platform = PLATFORMS.find(p => p.id === account.platform);
+                const platform = PLATFORMS.find(p => p.id === account?.platform);
                 const Icon = platform?.icon || Users;
-                const isExpiringSoon = account.expires_at && new Date(account.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                const isExpiringSoon = account?.expires_at && new Date(account.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
                 
                 return (
-                  <div key={account.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div key={account?.id || Math.random()} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center space-x-4">
                       <Avatar>
-                        <AvatarImage src={account.profile_image} />
+                        <AvatarImage src={account?.profile_image || ''} />
                         <AvatarFallback>
                           <Icon className="h-4 w-4" />
                         </AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="flex items-center space-x-2">
-                          <h3 className="font-medium">{account.name}</h3>
-                          <Badge variant="secondary">{account.platform}</Badge>
+                          <h3 className="font-medium">{account?.name || 'Unknown'}</h3>
+                          <Badge variant="secondary">{account?.platform || 'unknown'}</Badge>
                           {isExpiringSoon && (
                             <Badge variant="destructive" className="text-xs">
                               Expires Soon
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-slate-600">@{account.username}</p>
+                        <p className="text-sm text-slate-600">@{account?.username || 'unknown'}</p>
                         <p className="text-xs text-slate-500">
-                          Connected {format(new Date(account.created_at), 'MMM d, yyyy')}
-                          {account.expires_at && (
+                          Connected {account?.created_at ? format(new Date(account.created_at), 'MMM d, yyyy') : 'Unknown date'}
+                          {account?.expires_at && (
                             <span className="ml-2">
                               • Expires {format(new Date(account.expires_at), 'MMM d, yyyy')}
                             </span>
@@ -262,7 +265,7 @@ export const Accounts: React.FC = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDisconnect(account.id, platform?.name || account.platform)}
+                        onClick={() => handleDisconnect(account?.id || '', platform?.name || account?.platform || 'unknown')}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -352,9 +355,9 @@ export const Accounts: React.FC = () => {
             <h4>Step 1: Create OAuth Applications</h4>
             <p>Create developer applications for each platform you want to support:</p>
             <ul>
-              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
-              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Facebook Developer Console</a></li>
-              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Twitter Developer Portal</a></li>
+              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
+              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Facebook Developer Console</a></li>
+              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a></li>
             </ul>
             
             <h4>Step 2: Configure OAuth Redirect URIs</h4>
