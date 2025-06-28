@@ -30,12 +30,33 @@ Deno.serve(async (req) => {
 
     // Validate required environment variables
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new Error('Missing Supabase configuration');
+      console.error('Missing Supabase configuration');
+      return new Response(JSON.stringify({ 
+        error: 'Missing Supabase configuration',
+        details: 'SUPABASE_URL or SUPABASE_ANON_KEY not found',
+        configurationRequired: true
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     if (!twitterClientId || !twitterClientSecret) {
-      console.error('Missing Twitter credentials');
-      throw new Error('Twitter OAuth credentials not configured. Please set TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET in your Supabase project secrets.');
+      console.error('Missing Twitter OAuth credentials');
+      return new Response(JSON.stringify({ 
+        error: 'Twitter OAuth credentials not configured',
+        details: 'Missing TWITTER_CLIENT_ID and/or TWITTER_CLIENT_SECRET in Supabase project secrets',
+        configurationRequired: true,
+        instructions: {
+          step1: 'Go to your Supabase project dashboard',
+          step2: 'Navigate to Project Settings > Edge Functions > Secrets',
+          step3: 'Add TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET secrets',
+          step4: 'Get these values from your Twitter Developer Account'
+        }
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
@@ -57,21 +78,50 @@ Deno.serve(async (req) => {
           // Validate authorization header
           const authHeader = req.headers.get('Authorization');
           if (!authHeader) {
-            throw new Error('Missing authorization header');
+            console.error('Missing authorization header');
+            return new Response(JSON.stringify({ 
+              error: 'Missing authorization header',
+              details: 'Authorization header is required for OAuth initiation'
+            }), {
+              status: 401,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
           }
 
           const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
           
           if (userError || !user) {
             console.error('User authentication error:', userError);
-            throw new Error('Unauthorized - invalid or expired token');
+            return new Response(JSON.stringify({ 
+              error: 'Unauthorized',
+              details: 'Invalid or expired authentication token',
+              userError: userError?.message
+            }), {
+              status: 401,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
           }
 
           return await initiateTwitterAuth(supabaseClient, user.id, supabaseUrl, twitterClientId);
+        } else {
+          return new Response(JSON.stringify({ 
+            error: 'Invalid action',
+            details: 'Expected action: initiate'
+          }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
         }
       } catch (parseError) {
         console.error('Error parsing POST body:', parseError);
-        throw new Error('Invalid request body');
+        return new Response(JSON.stringify({ 
+          error: 'Invalid request body',
+          details: 'Failed to parse JSON body',
+          parseError: parseError.message
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
     }
 
@@ -84,7 +134,8 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ 
       error: 'Invalid action or method',
       method: req.method,
-      action: action
+      action: action,
+      details: 'Supported: POST /initiate, GET /callback'
     }), {
       status: 404, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -96,10 +147,11 @@ Deno.serve(async (req) => {
     // Return detailed error information for debugging
     return new Response(JSON.stringify({ 
       error: error.message,
-      details: 'Ensure TWITTER_CLIENT_ID and TWITTER_CLIENT_SECRET are configured in Supabase project secrets',
-      timestamp: new Date().toISOString()
+      details: 'Unexpected error in Twitter OAuth function',
+      timestamp: new Date().toISOString(),
+      stack: error.stack
     }), {
-      status: 400,
+      status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
@@ -139,7 +191,14 @@ async function initiateTwitterAuth(supabaseClient: any, userId: string, supabase
 
     if (insertError) {
       console.error('Failed to store OAuth state:', insertError);
-      throw new Error('Failed to initialize OAuth flow');
+      return new Response(JSON.stringify({ 
+        error: 'Failed to initialize OAuth flow',
+        details: 'Could not store OAuth state in database',
+        dbError: insertError.message
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Build Twitter authorization URL
@@ -152,18 +211,26 @@ async function initiateTwitterAuth(supabaseClient: any, userId: string, supabase
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
 
-    console.log('Generated Twitter auth URL:', authUrl.toString());
+    console.log('Generated Twitter auth URL successfully');
 
     return new Response(JSON.stringify({ 
       authUrl: authUrl.toString(),
       success: true
     }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
     console.error('Error in initiateTwitterAuth:', error);
-    throw error;
+    return new Response(JSON.stringify({ 
+      error: 'Failed to initiate Twitter OAuth',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 }
 

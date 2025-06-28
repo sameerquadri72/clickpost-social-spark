@@ -139,10 +139,28 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
       if (response.error) {
         console.error('OAuth initiation error:', response.error);
         
-        // Provide more specific error messages based on common issues
+        // Parse the error response to provide better error messages
         let errorMessage = response.error.message || 'Failed to initiate OAuth';
+        let isConfigurationError = false;
         
-        if (errorMessage.includes('Missing') || errorMessage.includes('credentials') || errorMessage.includes('CLIENT_ID') || errorMessage.includes('CLIENT_SECRET') || errorMessage.includes('APP_ID') || errorMessage.includes('APP_SECRET')) {
+        // Try to parse the error details if it's a JSON response
+        try {
+          if (typeof response.error === 'object' && response.error.details) {
+            errorMessage = response.error.details;
+            isConfigurationError = response.error.configurationRequired === true;
+          }
+        } catch (parseError) {
+          console.log('Could not parse error details:', parseError);
+        }
+        
+        // Provide more specific error messages based on common issues
+        if (errorMessage.includes('Missing') || 
+            errorMessage.includes('credentials') || 
+            errorMessage.includes('CLIENT_ID') || 
+            errorMessage.includes('CLIENT_SECRET') || 
+            errorMessage.includes('APP_ID') || 
+            errorMessage.includes('APP_SECRET') ||
+            isConfigurationError) {
           errorMessage = `OAuth credentials not configured for ${platform.charAt(0).toUpperCase() + platform.slice(1)}. Please configure the required API credentials in your Supabase project secrets.`;
         } else if (errorMessage.includes('Unauthorized')) {
           errorMessage = 'Authentication failed. Please log in again.';
@@ -155,6 +173,11 @@ export const SocialAccountsProvider: React.FC<{ children: ReactNode }> = ({ chil
 
       // Check if response has data and authUrl
       if (!response.data || !response.data.authUrl) {
+        // Check if this is a configuration error
+        if (response.data && response.data.configurationRequired) {
+          throw new Error(`OAuth credentials not configured for ${platform.charAt(0).toUpperCase() + platform.slice(1)}. Please set up the required API credentials in your Supabase project secrets.`);
+        }
+        
         throw new Error(`OAuth service for ${platform.charAt(0).toUpperCase() + platform.slice(1)} is not properly configured. Please check that the required API credentials are set in your Supabase project secrets.`);
       }
 

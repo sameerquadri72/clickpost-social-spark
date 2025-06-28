@@ -16,7 +16,8 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
-  Settings
+  Settings,
+  AlertTriangle
 } from 'lucide-react';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { useToast } from '@/hooks/use-toast';
@@ -29,7 +30,8 @@ const PLATFORMS = [
     icon: Linkedin,
     color: 'bg-blue-600',
     description: 'Connect your LinkedIn profile to share professional content',
-    available: true
+    available: true,
+    secrets: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET']
   },
   {
     id: 'facebook',
@@ -37,7 +39,8 @@ const PLATFORMS = [
     icon: Facebook,
     color: 'bg-blue-500',
     description: 'Share posts to your Facebook profile or pages',
-    available: true
+    available: true,
+    secrets: ['FACEBOOK_APP_ID', 'FACEBOOK_APP_SECRET']
   },
   {
     id: 'twitter',
@@ -45,7 +48,8 @@ const PLATFORMS = [
     icon: Twitter,
     color: 'bg-slate-800',
     description: 'Post tweets and engage with your Twitter audience',
-    available: true
+    available: true,
+    secrets: ['TWITTER_CLIENT_ID', 'TWITTER_CLIENT_SECRET']
   },
   {
     id: 'instagram',
@@ -53,12 +57,14 @@ const PLATFORMS = [
     icon: Instagram,
     color: 'bg-pink-500',
     description: 'Share photos and stories to Instagram (via Facebook Pages)',
-    available: true
+    available: true,
+    secrets: ['FACEBOOK_APP_ID', 'FACEBOOK_APP_SECRET']
   }
 ];
 
 export const Accounts: React.FC = () => {
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
   const { accounts, loading, connectAccount, disconnectAccount, isAccountConnected } = useSocialAccounts();
   const { toast } = useToast();
 
@@ -78,6 +84,7 @@ export const Accounts: React.FC = () => {
     }
 
     if (error) {
+      setLastError(error);
       toast({
         title: "Connection Failed",
         description: error,
@@ -90,11 +97,14 @@ export const Accounts: React.FC = () => {
 
   const handleConnect = async (platformId: string) => {
     setConnectingPlatform(platformId);
+    setLastError(null);
     
     try {
       await connectAccount(platformId);
     } catch (error) {
       console.error('Connection error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setLastError(errorMessage);
       // Error is already handled in the context with toast notification
     } finally {
       setConnectingPlatform(null);
@@ -140,6 +150,27 @@ export const Accounts: React.FC = () => {
           )}
         </AlertDescription>
       </Alert>
+
+      {/* Error Alert */}
+      {lastError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Last Connection Error:</strong> {lastError}
+            {lastError.includes('credentials') || lastError.includes('configured') ? (
+              <div className="mt-2 text-sm">
+                <p>This error indicates that OAuth credentials are not properly configured. Please:</p>
+                <ol className="list-decimal list-inside mt-1 space-y-1">
+                  <li>Go to your Supabase project dashboard</li>
+                  <li>Navigate to Project Settings → Edge Functions → Secrets</li>
+                  <li>Add the required secrets for the platform you're trying to connect</li>
+                  <li>Ensure the secret names match exactly (case-sensitive)</li>
+                </ol>
+              </div>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Connected Accounts Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -263,6 +294,16 @@ export const Accounts: React.FC = () => {
                       <div>
                         <h3 className="font-semibold">{platform.name}</h3>
                         <p className="text-sm text-slate-600 mt-1">{platform.description}</p>
+                        <div className="mt-2">
+                          <p className="text-xs text-slate-500">Required secrets:</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {platform.secrets.map((secret) => (
+                              <code key={secret} className="text-xs bg-slate-100 px-1 py-0.5 rounded">
+                                {secret}
+                              </code>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-col items-end space-y-2">
@@ -339,9 +380,26 @@ export const Accounts: React.FC = () => {
                 <li>• The required OAuth credentials are not configured in Supabase secrets</li>
                 <li>• The Edge Functions cannot access the environment variables</li>
                 <li>• The OAuth app configuration is incorrect</li>
+                <li>• The secret names don't match exactly (they are case-sensitive)</li>
               </ul>
               <p className="text-sm text-amber-700 mt-2">
                 Double-check that all required secrets are properly set in your Supabase project settings under "Project Settings" → "Edge Functions" → "Secrets".
+              </p>
+            </div>
+
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h5 className="font-medium text-blue-800">How to Set Up Supabase Secrets:</h5>
+              <ol className="text-sm text-blue-700 mt-2 space-y-1">
+                <li>1. Go to your Supabase project dashboard</li>
+                <li>2. Click on "Project Settings" (gear icon in the sidebar)</li>
+                <li>3. Navigate to "Edge Functions" in the left menu</li>
+                <li>4. Click on the "Secrets" tab</li>
+                <li>5. Click "Add new secret" for each required credential</li>
+                <li>6. Enter the exact secret name (case-sensitive) and value</li>
+                <li>7. Save each secret</li>
+              </ol>
+              <p className="text-sm text-blue-700 mt-2">
+                <strong>Important:</strong> After adding secrets, it may take a few minutes for them to be available to your Edge Functions.
               </p>
             </div>
           </div>
