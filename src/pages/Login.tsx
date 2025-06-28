@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -37,11 +36,21 @@ export const Login: React.FC = () => {
         description: "You have successfully logged in.",
       });
     } catch (error) {
-      toast({
-        title: "Login failed",
-        description: "Please check your credentials and try again.",
-        variant: "destructive",
-      });
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      if (errorMessage.includes('Email not confirmed')) {
+        toast({
+          title: "Email not confirmed",
+          description: "Please check your email and click the confirmation link before signing in.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Login failed",
+          description: "Please check your credentials and try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
