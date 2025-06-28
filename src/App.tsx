@@ -12,7 +12,7 @@ import { Landing } from "@/pages/Landing";
 import { Login } from "@/pages/Login";
 import { Register } from "@/pages/Register";
 import { Dashboard } from "@/pages/Dashboard";
-import { SocialAuthCallback } from "@/components/SocialAuthCallback";
+import { OAuthCallbackHandler } from "@/components/OAuthCallbackHandler";
 import NotFound from "./pages/NotFound";
 import { CreatePost } from "@/pages/CreatePost";
 import { Calendar } from "@/pages/Calendar";
@@ -34,8 +34,8 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 
-                {/* Social Auth Callbacks */}
-                <Route path="/auth/:platform/callback" element={<SocialAuthCallback />} />
+                {/* OAuth Callbacks */}
+                <Route path="/auth/:platform/callback" element={<OAuthCallbackHandler />} />
                 
                 <Route path="/dashboard" element={
                   <ProtectedRoute>

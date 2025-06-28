@@ -31,7 +31,7 @@ const PLATFORMS = [
     color: 'bg-blue-600',
     description: 'Connect your LinkedIn profile to share professional content',
     available: true,
-    secrets: ['LINKEDIN_CLIENT_ID', 'LINKEDIN_CLIENT_SECRET']
+    envVars: ['VITE_LINKEDIN_CLIENT_ID', 'VITE_LINKEDIN_CLIENT_SECRET']
   },
   {
     id: 'facebook',
@@ -40,7 +40,7 @@ const PLATFORMS = [
     color: 'bg-blue-500',
     description: 'Share posts to your Facebook profile or pages',
     available: true,
-    secrets: ['FACEBOOK_APP_ID', 'FACEBOOK_APP_SECRET']
+    envVars: ['VITE_FACEBOOK_APP_ID', 'VITE_FACEBOOK_APP_SECRET']
   },
   {
     id: 'twitter',
@@ -49,7 +49,7 @@ const PLATFORMS = [
     color: 'bg-slate-800',
     description: 'Post tweets and engage with your Twitter audience',
     available: true,
-    secrets: ['TWITTER_CLIENT_ID', 'TWITTER_CLIENT_SECRET']
+    envVars: ['VITE_TWITTER_CLIENT_ID', 'VITE_TWITTER_CLIENT_SECRET']
   },
   {
     id: 'instagram',
@@ -57,8 +57,8 @@ const PLATFORMS = [
     icon: Instagram,
     color: 'bg-pink-500',
     description: 'Share photos and stories to Instagram (via Facebook Pages)',
-    available: true,
-    secrets: ['FACEBOOK_APP_ID', 'FACEBOOK_APP_SECRET']
+    available: false, // Disabled for now as it requires Facebook setup
+    envVars: ['VITE_FACEBOOK_APP_ID', 'VITE_FACEBOOK_APP_SECRET']
   }
 ];
 
@@ -120,6 +120,13 @@ export const Accounts: React.FC = () => {
     a.expires_at && new Date(a.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   );
 
+  const checkEnvVars = (envVars: string[]) => {
+    return envVars.every(envVar => {
+      const value = import.meta.env[envVar];
+      return value && value.trim() !== '';
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -142,10 +149,10 @@ export const Accounts: React.FC = () => {
       <Alert>
         <Settings className="h-4 w-4" />
         <AlertDescription>
-          <strong>Configuration Required:</strong> To connect social media accounts, OAuth credentials must be configured as Supabase secrets. 
+          <strong>New Direct OAuth Method:</strong> This version uses a direct OAuth flow that requires environment variables to be set in your .env file instead of Supabase secrets.
           {connectedAccounts.length === 0 && (
             <span className="block mt-1 text-sm">
-              If connection attempts fail, check that the required API credentials are properly set in your Supabase project settings.
+              If connection attempts fail, check that the required environment variables are properly set in your .env file.
             </span>
           )}
         </AlertDescription>
@@ -157,14 +164,14 @@ export const Accounts: React.FC = () => {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>Last Connection Error:</strong> {lastError}
-            {lastError.includes('credentials') || lastError.includes('configured') ? (
+            {lastError.includes('credentials') || lastError.includes('environment variables') ? (
               <div className="mt-2 text-sm">
                 <p>This error indicates that OAuth credentials are not properly configured. Please:</p>
                 <ol className="list-decimal list-inside mt-1 space-y-1">
-                  <li>Go to your Supabase project dashboard</li>
-                  <li>Navigate to Project Settings → Edge Functions → Secrets</li>
-                  <li>Add the required secrets for the platform you're trying to connect</li>
-                  <li>Ensure the secret names match exactly (case-sensitive)</li>
+                  <li>Copy .env.example to .env in your project root</li>
+                  <li>Fill in the required OAuth credentials for each platform</li>
+                  <li>Restart your development server</li>
+                  <li>Ensure the environment variable names match exactly</li>
                 </ol>
               </div>
             ) : null}
@@ -283,6 +290,7 @@ export const Accounts: React.FC = () => {
               const Icon = platform.icon;
               const isConnected = isAccountConnected(platform.id);
               const isLoading = connectingPlatform === platform.id;
+              const hasEnvVars = checkEnvVars(platform.envVars);
               
               return (
                 <div key={platform.id} className="border rounded-lg p-6">
@@ -295,14 +303,21 @@ export const Accounts: React.FC = () => {
                         <h3 className="font-semibold">{platform.name}</h3>
                         <p className="text-sm text-slate-600 mt-1">{platform.description}</p>
                         <div className="mt-2">
-                          <p className="text-xs text-slate-500">Required secrets:</p>
+                          <p className="text-xs text-slate-500">Required environment variables:</p>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {platform.secrets.map((secret) => (
-                              <code key={secret} className="text-xs bg-slate-100 px-1 py-0.5 rounded">
-                                {secret}
+                            {platform.envVars.map((envVar) => (
+                              <code key={envVar} className={`text-xs px-1 py-0.5 rounded ${
+                                import.meta.env[envVar] ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {envVar}
                               </code>
                             ))}
                           </div>
+                          {!hasEnvVars && (
+                            <p className="text-xs text-red-600 mt-1">
+                              ⚠️ Missing required environment variables
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -315,7 +330,7 @@ export const Accounts: React.FC = () => {
                       ) : (
                         <Button
                           onClick={() => handleConnect(platform.id)}
-                          disabled={isLoading || !platform.available}
+                          disabled={isLoading || !platform.available || !hasEnvVars}
                           size="sm"
                         >
                           {isLoading ? (
@@ -347,60 +362,39 @@ export const Accounts: React.FC = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="prose prose-sm max-w-none">
-            <h4>To connect real social media accounts, you need to:</h4>
+            <h4>New Direct OAuth Method Setup:</h4>
             <ol>
-              <li>Create developer applications for each platform</li>
-              <li>Configure OAuth redirect URIs to point to your Edge Functions</li>
-              <li>Set up Supabase secrets with your API credentials</li>
+              <li>Copy the <code>.env.example</code> file to <code>.env</code> in your project root</li>
+              <li>Create developer applications for each platform you want to connect</li>
+              <li>Fill in the OAuth credentials in your <code>.env</code> file</li>
+              <li>Restart your development server</li>
             </ol>
             
-            <h4>Required Supabase Secrets:</h4>
+            <h4>Required Environment Variables:</h4>
             <ul>
-              <li><code>LINKEDIN_CLIENT_ID</code> - LinkedIn App Client ID</li>
-              <li><code>LINKEDIN_CLIENT_SECRET</code> - LinkedIn App Client Secret</li>
-              <li><code>FACEBOOK_APP_ID</code> - Facebook App ID</li>
-              <li><code>FACEBOOK_APP_SECRET</code> - Facebook App Secret</li>
-              <li><code>TWITTER_CLIENT_ID</code> - Twitter App Client ID</li>
-              <li><code>TWITTER_CLIENT_SECRET</code> - Twitter App Client Secret</li>
+              <li><code>VITE_LINKEDIN_CLIENT_ID</code> - LinkedIn App Client ID</li>
+              <li><code>VITE_LINKEDIN_CLIENT_SECRET</code> - LinkedIn App Client Secret</li>
+              <li><code>VITE_FACEBOOK_APP_ID</code> - Facebook App ID</li>
+              <li><code>VITE_FACEBOOK_APP_SECRET</code> - Facebook App Secret</li>
+              <li><code>VITE_TWITTER_CLIENT_ID</code> - Twitter App Client ID</li>
+              <li><code>VITE_TWITTER_CLIENT_SECRET</code> - Twitter App Client Secret</li>
             </ul>
             
             <h4>OAuth Redirect URIs to configure in your apps:</h4>
             <ul>
-              <li>LinkedIn: <code>{window.location.origin}/functions/v1/linkedin-oauth/callback</code></li>
-              <li>Facebook: <code>{window.location.origin}/functions/v1/facebook-oauth/callback</code></li>
-              <li>Twitter: <code>{window.location.origin}/functions/v1/twitter-oauth/callback</code></li>
+              <li>LinkedIn: <code>{window.location.origin}/auth/linkedin/callback</code></li>
+              <li>Facebook: <code>{window.location.origin}/auth/facebook/callback</code></li>
+              <li>Twitter: <code>{window.location.origin}/auth/twitter/callback</code></li>
             </ul>
             
             <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <h5 className="font-medium text-amber-800">Troubleshooting Connection Issues:</h5>
-              <p className="text-sm text-amber-700 mt-1">
-                If you're getting "Edge Function returned a non-2xx status code" errors, this typically means:
-              </p>
-              <ul className="text-sm text-amber-700 mt-2 ml-4">
-                <li>• The required OAuth credentials are not configured in Supabase secrets</li>
-                <li>• The Edge Functions cannot access the environment variables</li>
-                <li>• The OAuth app configuration is incorrect</li>
-                <li>• The secret names don't match exactly (they are case-sensitive)</li>
+              <h5 className="font-medium text-amber-800">Important Notes:</h5>
+              <ul className="text-sm text-amber-700 mt-2 space-y-1">
+                <li>• This method requires client secrets to be exposed in the frontend (for demo purposes only)</li>
+                <li>• In production, you should use a proper backend service to handle OAuth token exchange</li>
+                <li>• The environment variables are prefixed with <code>VITE_</code> to make them available in the browser</li>
+                <li>• Make sure to restart your development server after updating the .env file</li>
               </ul>
-              <p className="text-sm text-amber-700 mt-2">
-                Double-check that all required secrets are properly set in your Supabase project settings under "Project Settings" → "Edge Functions" → "Secrets".
-              </p>
-            </div>
-
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h5 className="font-medium text-blue-800">How to Set Up Supabase Secrets:</h5>
-              <ol className="text-sm text-blue-700 mt-2 space-y-1">
-                <li>1. Go to your Supabase project dashboard</li>
-                <li>2. Click on "Project Settings" (gear icon in the sidebar)</li>
-                <li>3. Navigate to "Edge Functions" in the left menu</li>
-                <li>4. Click on the "Secrets" tab</li>
-                <li>5. Click "Add new secret" for each required credential</li>
-                <li>6. Enter the exact secret name (case-sensitive) and value</li>
-                <li>7. Save each secret</li>
-              </ol>
-              <p className="text-sm text-blue-700 mt-2">
-                <strong>Important:</strong> After adding secrets, it may take a few minutes for them to be available to your Edge Functions.
-              </p>
             </div>
           </div>
         </CardContent>
