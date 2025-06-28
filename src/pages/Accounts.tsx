@@ -71,31 +71,28 @@ export const Accounts: React.FC = () => {
 
   // Handle OAuth success/error messages from URL params
   useEffect(() => {
-    // Only access window object in browser environment
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const success = urlParams.get('success');
-      const error = urlParams.get('error');
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const error = urlParams.get('error');
 
-      if (success) {
-        toast({
-          title: "Account Connected",
-          description: `Your ${success} account has been successfully connected.`,
-        });
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
+    if (success) {
+      toast({
+        title: "Account Connected",
+        description: `Your ${success} account has been successfully connected.`,
+      });
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
 
-      if (error) {
-        setLastError(error);
-        toast({
-          title: "Connection Failed",
-          description: error,
-          variant: "destructive",
-        });
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
+    if (error) {
+      setLastError(error);
+      toast({
+        title: "Connection Failed",
+        description: error,
+        variant: "destructive",
+      });
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [toast]);
 
@@ -363,9 +360,9 @@ export const Accounts: React.FC = () => {
             <h4>Step 2: Configure OAuth Redirect URIs</h4>
             <p>In each OAuth application, set the redirect URI to:</p>
             <div className="bg-slate-100 p-3 rounded-lg font-mono text-sm">
-              <p>LinkedIn: <code>{typeof window !== 'undefined' ? window.location.origin : 'YOUR_DOMAIN'}/functions/v1/linkedin-oauth/callback</code></p>
-              <p>Facebook: <code>{typeof window !== 'undefined' ? window.location.origin : 'YOUR_DOMAIN'}/functions/v1/facebook-oauth/callback</code></p>
-              <p>Twitter: <code>{typeof window !== 'undefined' ? window.location.origin : 'YOUR_DOMAIN'}/functions/v1/twitter-oauth/callback</code></p>
+              <p>LinkedIn: <code>{window.location.origin}/functions/v1/linkedin-oauth/callback</code></p>
+              <p>Facebook: <code>{window.location.origin}/functions/v1/facebook-oauth/callback</code></p>
+              <p>Twitter: <code>{window.location.origin}/functions/v1/twitter-oauth/callback</code></p>
             </div>
             
             <h4>Step 3: Configure Supabase Secrets</h4>
