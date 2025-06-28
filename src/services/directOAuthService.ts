@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 interface OAuthConfig {
@@ -58,8 +59,14 @@ export class DirectOAuthService {
 
       const config = this.getOAuthConfig(platform);
       
-      if (!config.clientId) {
-        throw new Error(`${platform.charAt(0).toUpperCase() + platform.slice(1)} OAuth credentials not configured. Please check your environment variables.`);
+      // Check if we have frontend credentials configured
+      const hasFrontendCredentials = !!config.clientId;
+      
+      if (!hasFrontendCredentials) {
+        // Use Edge Function for OAuth initiation when frontend credentials are not available
+        console.log(`No frontend credentials for ${platform}, using Edge Function`);
+        await this.initiateOAuthViaEdgeFunction(platform, user);
+        return;
       }
 
       // Generate state token for security
@@ -110,6 +117,56 @@ export class DirectOAuthService {
       
     } catch (error) {
       console.error('OAuth initiation error:', error);
+      throw error;
+    }
+  }
+
+  private async initiateOAuthViaEdgeFunction(platform: string, user: any): Promise<void> {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No valid session found');
+      }
+
+      let functionName = '';
+      switch (platform) {
+        case 'linkedin':
+          functionName = 'linkedin-oauth';
+          break;
+        case 'facebook':
+          functionName = 'facebook-oauth';
+          break;
+        case 'twitter':
+          functionName = 'twitter-oauth';
+          break;
+        default:
+          throw new Error(`Edge function not available for ${platform}`);
+      }
+
+      console.log(`Calling ${functionName} edge function`);
+
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: { action: 'initiate' },
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (error) {
+        console.error(`${functionName} error:`, error);
+        throw new Error(`Failed to initiate ${platform} OAuth: ${error.message}`);
+      }
+
+      if (data?.authUrl) {
+        console.log(`Redirecting to ${platform} OAuth URL via Edge Function`);
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error(`Invalid response from ${functionName} function`);
+      }
+
+    } catch (error) {
+      console.error(`Edge function OAuth error for ${platform}:`, error);
       throw error;
     }
   }
