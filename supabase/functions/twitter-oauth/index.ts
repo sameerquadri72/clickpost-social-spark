@@ -1,5 +1,4 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { createHmac } from 'node:crypto';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -92,14 +91,39 @@ Deno.serve(async (req) => {
   }
 });
 
+// Deno-compatible HMAC-SHA1 function using Web Crypto API
+async function generateHmacSha1(key: string, data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(key);
+  const dataToSign = encoder.encode(data);
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, dataToSign);
+  const signatureArray = new Uint8Array(signature);
+  
+  // Convert to base64
+  let binary = '';
+  for (let i = 0; i < signatureArray.byteLength; i++) {
+    binary += String.fromCharCode(signatureArray[i]);
+  }
+  return btoa(binary);
+}
+
 // OAuth 1.0a signature generation
-function generateOAuthSignature(
+async function generateOAuthSignature(
   method: string,
   url: string,
   params: Record<string, string>,
   consumerSecret: string,
   tokenSecret: string = ''
-): string {
+): Promise<string> {
   // Sort parameters
   const sortedParams = Object.keys(params)
     .sort()
@@ -116,23 +140,21 @@ function generateOAuthSignature(
   // Create signing key
   const signingKey = `${encodeURIComponent(consumerSecret)}&${encodeURIComponent(tokenSecret)}`;
 
-  // Generate signature
-  const signature = createHmac('sha1', signingKey)
-    .update(signatureBaseString)
-    .digest('base64');
+  // Generate signature using Web Crypto API
+  const signature = await generateHmacSha1(signingKey, signatureBaseString);
 
   return signature;
 }
 
 // Generate OAuth 1.0a authorization header
-function generateOAuthHeader(
+async function generateOAuthHeader(
   method: string,
   url: string,
   consumerKey: string,
   consumerSecret: string,
   additionalParams: Record<string, string> = {},
   tokenSecret: string = ''
-): string {
+): Promise<string> {
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const nonce = crypto.randomUUID().replace(/-/g, '');
 
@@ -145,7 +167,7 @@ function generateOAuthHeader(
     ...additionalParams
   };
 
-  const signature = generateOAuthSignature(method, url, oauthParams, consumerSecret, tokenSecret);
+  const signature = await generateOAuthSignature(method, url, oauthParams, consumerSecret, tokenSecret);
   oauthParams.oauth_signature = signature;
 
   const authHeader = 'OAuth ' + Object.keys(oauthParams)
@@ -168,7 +190,7 @@ async function initiateTwitterOAuth1a(
     
     // Step 1: Get request token from Twitter
     const requestTokenUrl = 'https://api.twitter.com/oauth/request_token';
-    const authHeader = generateOAuthHeader(
+    const authHeader = await generateOAuthHeader(
       'POST',
       requestTokenUrl,
       consumerKey,
@@ -297,7 +319,7 @@ async function handleTwitterCallback(
 
     // Step 3: Exchange request token for access token
     const accessTokenUrl = 'https://api.twitter.com/oauth/access_token';
-    const authHeader = generateOAuthHeader(
+    const authHeader = await generateOAuthHeader(
       'POST',
       accessTokenUrl,
       consumerKey,
@@ -345,7 +367,7 @@ async function handleTwitterCallback(
     // Get user profile information
     const userShowUrl = 'https://api.twitter.com/1.1/users/show.json';
     const userParams = { screen_name: screenName };
-    const userAuthHeader = generateOAuthHeader(
+    const userAuthHeader = await generateOAuthHeader(
       'GET',
       userShowUrl + '?' + new URLSearchParams(userParams).toString(),
       consumerKey,
