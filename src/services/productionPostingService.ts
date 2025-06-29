@@ -1,3 +1,4 @@
+
 import { SocialAccount } from '@/contexts/SocialAccountsContext';
 import { ScheduledPost } from '@/contexts/PostsContext';
 import { createHmac } from 'crypto';
@@ -305,7 +306,7 @@ export class ProductionPostingService {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const nonce = Math.random().toString(36).substring(2, 15);
 
-    const oauthParams = {
+    const oauthParams: Record<string, string> = {
       oauth_consumer_key: consumerKey,
       oauth_nonce: nonce,
       oauth_signature_method: 'HMAC-SHA1',
