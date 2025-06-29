@@ -256,10 +256,10 @@ export const Accounts: React.FC = () => {
                         </div>
                         <p className="text-sm text-slate-600">@{account?.username || 'unknown'}</p>
                         <p className="text-xs text-slate-500">
-                          Connected {account?.created_at ? format(new Date(account.created_at), 'MMM d, yyyy') : 'Unknown date'}
+                          Connected {account?.created_at ? format(new Date(account.created_at || ''), 'MMM d, yyyy') : 'Unknown date'}
                           {account?.expires_at && (
                             <span className="ml-2">
-                              • Expires {format(new Date(account.expires_at), 'MMM d, yyyy')}
+                              • Expires {format(new Date(account.expires_at || ''), 'MMM d, yyyy')}
                             </span>
                           )}
                         </p>
@@ -367,9 +367,9 @@ export const Accounts: React.FC = () => {
             <h4>Step 1: Create OAuth Applications</h4>
             <p>Create developer applications for each platform you want to support:</p>
             <ul>
-              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
-              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Facebook Developer Console</a></li>
-              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Twitter Developer Portal</a> (Enable OAuth 1.0a)</li>
+              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
+              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Facebook Developer Console</a></li>
+              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a> (Enable OAuth 1.0a)</li>
             </ul>
             
             <h4>Step 2: Configure OAuth Redirect URIs</h4>
