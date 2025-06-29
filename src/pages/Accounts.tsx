@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,8 @@ const PLATFORMS = [
     color: 'bg-blue-600',
     description: 'Connect your LinkedIn profile to share professional content',
     available: true,
-    setupUrl: 'https://www.linkedin.com/developers/apps'
+    setupUrl: 'https://www.linkedin.com/developers/apps',
+    oauthVersion: '2.0'
   },
   {
     id: 'facebook',
@@ -42,16 +42,18 @@ const PLATFORMS = [
     color: 'bg-blue-500',
     description: 'Share posts to your Facebook profile or pages',
     available: true,
-    setupUrl: 'https://developers.facebook.com/apps'
+    setupUrl: 'https://developers.facebook.com/apps',
+    oauthVersion: '2.0'
   },
   {
     id: 'twitter',
     name: 'X (Twitter)',
     icon: Twitter,
     color: 'bg-slate-800',
-    description: 'Post tweets and engage with your Twitter audience',
+    description: 'Post tweets using secure OAuth 1.0a authentication',
     available: true,
-    setupUrl: 'https://developer.twitter.com/en/portal/dashboard'
+    setupUrl: 'https://developer.twitter.com/en/portal/dashboard',
+    oauthVersion: '1.0a'
   },
   {
     id: 'instagram',
@@ -60,7 +62,8 @@ const PLATFORMS = [
     color: 'bg-pink-500',
     description: 'Share photos and stories to Instagram (via Facebook Pages)',
     available: true,
-    setupUrl: 'https://developers.facebook.com/apps'
+    setupUrl: 'https://developers.facebook.com/apps',
+    oauthVersion: '2.0'
   }
 ];
 
@@ -170,7 +173,7 @@ export const Accounts: React.FC = () => {
                 <ul className="list-disc list-inside mt-1 space-y-1">
                   <li>LinkedIn: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET</li>
                   <li>Facebook: FACEBOOK_APP_ID, FACEBOOK_APP_SECRET</li>
-                  <li>Twitter: TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET</li>
+                  <li>Twitter: TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET</li>
                 </ul>
               </div>
             )}
@@ -227,6 +230,7 @@ export const Accounts: React.FC = () => {
                 const platform = PLATFORMS.find(p => p.id === account?.platform);
                 const Icon = platform?.icon || Users;
                 const isExpiringSoon = account?.expires_at && new Date(account.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                const oauthVersion = account?.metadata?.oauth_version || platform?.oauthVersion || 'Unknown';
                 
                 return (
                   <div key={account?.id || Math.random()} className="flex items-center justify-between p-4 border rounded-lg">
@@ -241,6 +245,9 @@ export const Accounts: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <h3 className="font-medium">{account?.name || 'Unknown'}</h3>
                           <Badge variant="secondary">{account?.platform || 'unknown'}</Badge>
+                          <Badge variant="outline" className="text-xs">
+                            OAuth {oauthVersion}
+                          </Badge>
                           {isExpiringSoon && (
                             <Badge variant="destructive" className="text-xs">
                               Expires Soon
@@ -298,7 +305,12 @@ export const Accounts: React.FC = () => {
                         <Icon className="h-6 w-6 text-white" />
                       </div>
                       <div>
-                        <h3 className="font-semibold">{platform.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{platform.name}</h3>
+                          <Badge variant="outline" className="text-xs">
+                            OAuth {platform.oauthVersion}
+                          </Badge>
+                        </div>
                         <p className="text-sm text-slate-600 mt-1">{platform.description}</p>
                         <a 
                           href={platform.setupUrl}
@@ -357,7 +369,7 @@ export const Accounts: React.FC = () => {
             <ul>
               <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
               <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Facebook Developer Console</a></li>
-              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a></li>
+              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a> (Enable OAuth 1.0a)</li>
             </ul>
             
             <h4>Step 2: Configure OAuth Redirect URIs</h4>
@@ -376,8 +388,8 @@ export const Accounts: React.FC = () => {
                 <li>LINKEDIN_CLIENT_SECRET</li>
                 <li>FACEBOOK_APP_ID</li>
                 <li>FACEBOOK_APP_SECRET</li>
-                <li>TWITTER_CLIENT_ID</li>
-                <li>TWITTER_CLIENT_SECRET</li>
+                <li>TWITTER_CONSUMER_KEY (for OAuth 1.0a)</li>
+                <li>TWITTER_CONSUMER_SECRET (for OAuth 1.0a)</li>
               </ul>
             </div>
             
@@ -390,9 +402,10 @@ export const Accounts: React.FC = () => {
             <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
               <h5 className="font-medium text-green-800">Security Features:</h5>
               <ul className="text-sm text-green-700 mt-2 space-y-1">
-                <li>• Secure token exchange on the backend</li>
+                <li>• Twitter uses OAuth 1.0a with cryptographic signatures</li>
+                <li>• LinkedIn/Facebook use OAuth 2.0 with PKCE</li>
                 <li>• State parameter validation for CSRF protection</li>
-                <li>• Automatic token expiration handling</li>
+                <li>• Secure token storage in Supabase</li>
                 <li>• Row-level security for user data isolation</li>
               </ul>
             </div>

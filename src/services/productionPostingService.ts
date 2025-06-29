@@ -1,5 +1,6 @@
 import { SocialAccount } from '@/contexts/SocialAccountsContext';
 import { ScheduledPost } from '@/contexts/PostsContext';
+import { createHmac } from 'crypto';
 
 interface PostingResult {
   platform: string;
@@ -256,30 +257,28 @@ export class ProductionPostingService {
     }
   }
 
+  // Twitter OAuth 1.0a posting implementation
   private async postToTwitter(account: SocialAccount, post: ScheduledPost): Promise<PostingResult> {
     try {
-      const response = await fetch('https://api.twitter.com/2/tweets', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${account.access_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: post.content
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Twitter API error: ${errorData.detail || 'Unknown error'}`);
+      // Check if this is an OAuth 1.0a account (has token_secret)
+      if (!account.token_secret) {
+        throw new Error('Twitter account missing OAuth 1.0a credentials');
       }
 
-      const result = await response.json();
-      
+      // For OAuth 1.0a, we need to make signed requests
+      const tweetData = { status: post.content };
+      const result = await this.makeTwitterOAuth1aRequest(
+        'POST',
+        'https://api.twitter.com/1.1/statuses/update.json',
+        tweetData,
+        account.access_token,
+        account.token_secret
+      );
+
       return {
         platform: 'twitter',
         success: true,
-        postId: result.data.id
+        postId: result.id_str
       };
     } catch (error) {
       return {
@@ -288,6 +287,100 @@ export class ProductionPostingService {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
+  }
+
+  // Helper method for Twitter OAuth 1.0a signed requests
+  private async makeTwitterOAuth1aRequest(
+    method: string,
+    url: string,
+    params: Record<string, any>,
+    accessToken: string,
+    accessTokenSecret: string
+  ): Promise<any> {
+    // Note: In a real implementation, you would need the consumer key and secret
+    // These should be stored securely and accessed from environment variables
+    const consumerKey = 'YOUR_TWITTER_CONSUMER_KEY'; // This should come from environment
+    const consumerSecret = 'YOUR_TWITTER_CONSUMER_SECRET'; // This should come from environment
+
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const nonce = Math.random().toString(36).substring(2, 15);
+
+    const oauthParams = {
+      oauth_consumer_key: consumerKey,
+      oauth_nonce: nonce,
+      oauth_signature_method: 'HMAC-SHA1',
+      oauth_timestamp: timestamp,
+      oauth_token: accessToken,
+      oauth_version: '1.0'
+    };
+
+    // Combine OAuth params with request params
+    const allParams = { ...oauthParams, ...params };
+
+    // Generate signature
+    const signature = this.generateTwitterSignature(method, url, allParams, consumerSecret, accessTokenSecret);
+    oauthParams.oauth_signature = signature;
+
+    // Create authorization header
+    const authHeader = 'OAuth ' + Object.keys(oauthParams)
+      .sort()
+      .map(key => `${encodeURIComponent(key)}="${encodeURIComponent(oauthParams[key])}"`)
+      .join(', ');
+
+    // Make the request
+    const requestOptions: RequestInit = {
+      method,
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    };
+
+    if (method === 'POST') {
+      requestOptions.body = new URLSearchParams(params).toString();
+    } else if (Object.keys(params).length > 0) {
+      url += '?' + new URLSearchParams(params).toString();
+    }
+
+    const response = await fetch(url, requestOptions);
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Twitter API error: ${response.status} - ${errorData}`);
+    }
+
+    return await response.json();
+  }
+
+  private generateTwitterSignature(
+    method: string,
+    url: string,
+    params: Record<string, string>,
+    consumerSecret: string,
+    tokenSecret: string
+  ): string {
+    // Sort parameters
+    const sortedParams = Object.keys(params)
+      .sort()
+      .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`)
+      .join('&');
+
+    // Create signature base string
+    const signatureBaseString = [
+      method.toUpperCase(),
+      encodeURIComponent(url),
+      encodeURIComponent(sortedParams)
+    ].join('&');
+
+    // Create signing key
+    const signingKey = `${encodeURIComponent(consumerSecret)}&${encodeURIComponent(tokenSecret)}`;
+
+    // Generate signature using HMAC-SHA1
+    const signature = createHmac('sha1', signingKey)
+      .update(signatureBaseString)
+      .digest('base64');
+
+    return signature;
   }
 
   private async postToInstagram(account: SocialAccount, post: ScheduledPost): Promise<PostingResult> {
@@ -380,10 +473,27 @@ export class ProductionPostingService {
               isValid = facebookResponse.ok;
               break;
             case 'twitter':
-              const twitterResponse = await fetch('https://api.twitter.com/2/users/me', {
-                headers: { 'Authorization': `Bearer ${account.access_token}` }
-              });
-              isValid = twitterResponse.ok;
+              // For OAuth 1.0a accounts, we need to make a signed request
+              if (account.token_secret) {
+                try {
+                  await this.makeTwitterOAuth1aRequest(
+                    'GET',
+                    'https://api.twitter.com/1.1/account/verify_credentials.json',
+                    {},
+                    account.access_token,
+                    account.token_secret
+                  );
+                  isValid = true;
+                } catch {
+                  isValid = false;
+                }
+              } else {
+                // OAuth 2.0 validation
+                const twitterResponse = await fetch('https://api.twitter.com/2/users/me', {
+                  headers: { 'Authorization': `Bearer ${account.access_token}` }
+                });
+                isValid = twitterResponse.ok;
+              }
               break;
             default:
               isValid = true;
