@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -167,7 +168,7 @@ export const Accounts: React.FC = () => {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>Connection Error:</strong> {lastError}
-            {(lastError || '').includes('credentials') && (
+            {(lastError || '').toLowerCase().includes('credentials') && (
               <div className="mt-2 text-sm">
                 <p>Required Supabase secrets for each platform:</p>
                 <ul className="list-disc list-inside mt-1 space-y-1">
@@ -227,7 +228,7 @@ export const Accounts: React.FC = () => {
           <CardContent>
             <div className="space-y-4">
               {connectedAccounts.map((account) => {
-                const platform = PLATFORMS.find(p => p.id === account?.platform);
+                const platform = PLATFORMS.find(p => p.id === (account?.platform || ''));
                 const Icon = platform?.icon || Users;
                 const isExpiringSoon = account?.expires_at && new Date(account.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
                 const oauthVersion = account?.metadata?.oauth_version || platform?.oauthVersion || 'Unknown';
@@ -367,9 +368,9 @@ export const Accounts: React.FC = () => {
             <h4>Step 1: Create OAuth Applications</h4>
             <p>Create developer applications for each platform you want to support:</p>
             <ul>
-              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
-              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Facebook Developer Console</a></li>
-              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target=\"_blank" rel="noopener noreferrer\" className="text-blue-600 underline">Twitter Developer Portal</a> (Enable OAuth 1.0a)</li>
+              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
+              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Facebook Developer Console</a></li>
+              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a> (Enable OAuth 1.0a)</li>
             </ul>
             
             <h4>Step 2: Configure OAuth Redirect URIs</h4>
