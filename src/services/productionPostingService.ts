@@ -1,13 +1,33 @@
 
 import { SocialAccount } from '@/contexts/SocialAccountsContext';
 import { ScheduledPost } from '@/contexts/PostsContext';
-import { createHmac } from 'crypto';
 
 interface PostingResult {
   platform: string;
   success: boolean;
   postId?: string;
   error?: string;
+}
+
+// Web Crypto API implementation for HMAC-SHA1
+async function createHmacSha1(key: string, data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyBuffer = encoder.encode(key);
+  const dataBuffer = encoder.encode(data);
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBuffer,
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, dataBuffer);
+  const signatureArray = new Uint8Array(signature);
+  
+  // Convert to base64
+  return btoa(String.fromCharCode(...signatureArray));
 }
 
 export class ProductionPostingService {
@@ -319,7 +339,7 @@ export class ProductionPostingService {
     const allParams = { ...oauthParams, ...params };
 
     // Generate signature
-    const signature = this.generateTwitterSignature(method, url, allParams, consumerSecret, accessTokenSecret);
+    const signature = await this.generateTwitterSignature(method, url, allParams, consumerSecret, accessTokenSecret);
     oauthParams.oauth_signature = signature;
 
     // Create authorization header
@@ -353,13 +373,13 @@ export class ProductionPostingService {
     return await response.json();
   }
 
-  private generateTwitterSignature(
+  private async generateTwitterSignature(
     method: string,
     url: string,
     params: Record<string, string>,
     consumerSecret: string,
     tokenSecret: string
-  ): string {
+  ): Promise<string> {
     // Sort parameters
     const sortedParams = Object.keys(params)
       .sort()
@@ -376,10 +396,8 @@ export class ProductionPostingService {
     // Create signing key
     const signingKey = `${encodeURIComponent(consumerSecret)}&${encodeURIComponent(tokenSecret)}`;
 
-    // Generate signature using HMAC-SHA1
-    const signature = createHmac('sha1', signingKey)
-      .update(signatureBaseString)
-      .digest('base64');
+    // Generate signature using Web Crypto API
+    const signature = await createHmacSha1(signingKey, signatureBaseString);
 
     return signature;
   }
