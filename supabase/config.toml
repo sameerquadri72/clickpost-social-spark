@@ -1,1 +1,13 @@
 project_id = "kcyleuhtrrzzrwglvnlo"
+
+[functions.linkedin-oauth]
+verify_jwt = false
+
+[functions.facebook-oauth]
+verify_jwt = false
+
+[functions.twitter-oauth]
+verify_jwt = false
+
+[functions.youtube-oauth]
+verify_jwt = false
