@@ -78,10 +78,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
+        console.error('Login error details:', { error, email });
         throw error;
       }
 
       if (data.user) {
+        console.log('Login successful:', data.user.email);
         setCurrentUser({ 
           email: data.user.email || '', 
           id: data.user.id 
@@ -107,15 +109,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
+        console.error('Registration error details:', { error, email });
         throw error;
       }
 
+      console.log('Registration response:', data);
+
       // Note: User will need to confirm email before they can sign in
       if (data.user && !data.user.email_confirmed_at) {
+        console.log('User registered but needs email confirmation');
         throw new Error('Please check your email and click the confirmation link to complete registration.');
       }
 
       if (data.user) {
+        console.log('Registration successful:', data.user.email);
         setCurrentUser({ 
           email: data.user.email || '', 
           id: data.user.id 
