@@ -76,6 +76,10 @@ export class ProductionPostingService {
             result = await this.postToInstagram(account, post);
             break;
 
+          case 'youtube':
+            result = await this.postToYouTube(account, post);
+            break;
+
           default:
             result = {
               platform,
@@ -239,36 +243,20 @@ export class ProductionPostingService {
   private async postToFacebook(account: SocialAccount, post: ScheduledPost): Promise<PostingResult> {
     try {
       const token = account.page_access_token || account.access_token;
-      let endpoint = 'me/feed';
-      
-      // If it's a page account, use the page ID
-      if (account.metadata?.page_id) {
-        endpoint = `${account.metadata.page_id}/feed`;
+      const pageId = account.metadata?.page_id || 'me';
+
+      // Determine content type and endpoint
+      if (post.media && post.media.length > 0) {
+        const hasVideo = post.media.some(file => file.type.startsWith('video/'));
+        
+        if (hasVideo) {
+          return await this.postFacebookVideo(pageId, token, post);
+        } else {
+          return await this.postFacebookPhotos(pageId, token, post);
+        }
+      } else {
+        return await this.postFacebookText(pageId, token, post);
       }
-
-      const response = await fetch(`https://graph.facebook.com/v18.0/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: post.content,
-          access_token: token
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Facebook API error: ${errorData.error?.message || 'Unknown error'}`);
-      }
-
-      const result = await response.json();
-      
-      return {
-        platform: 'facebook',
-        success: true,
-        postId: result.id
-      };
     } catch (error) {
       return {
         platform: 'facebook',
@@ -276,6 +264,121 @@ export class ProductionPostingService {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
+  }
+
+  private async postFacebookText(pageId: string, token: string, post: ScheduledPost): Promise<PostingResult> {
+    const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}/feed`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: post.content,
+        access_token: token
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Facebook API error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const result = await response.json();
+    return {
+      platform: 'facebook',
+      success: true,
+      postId: result.id
+    };
+  }
+
+  private async postFacebookPhotos(pageId: string, token: string, post: ScheduledPost): Promise<PostingResult> {
+    if (post.media!.length === 1) {
+      // Single photo
+      const formData = new FormData();
+      formData.append('source', post.media![0]);
+      formData.append('message', post.content);
+      formData.append('access_token', token);
+
+      const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}/photos`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Facebook photo error: ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const result = await response.json();
+      return {
+        platform: 'facebook',
+        success: true,
+        postId: result.id
+      };
+    } else {
+      // Multiple photos - create album
+      const albumResponse = await fetch(`https://graph.facebook.com/v18.0/${pageId}/albums`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Social Media Post',
+          message: post.content,
+          access_token: token
+        })
+      });
+
+      const album = await albumResponse.json();
+      
+      // Upload photos to album
+      const photoIds = [];
+      for (const media of post.media!) {
+        const formData = new FormData();
+        formData.append('source', media);
+        formData.append('access_token', token);
+
+        const photoResponse = await fetch(`https://graph.facebook.com/v18.0/${album.id}/photos`, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (photoResponse.ok) {
+          const photo = await photoResponse.json();
+          photoIds.push(photo.id);
+        }
+      }
+
+      return {
+        platform: 'facebook',
+        success: true,
+        postId: album.id
+      };
+    }
+  }
+
+  private async postFacebookVideo(pageId: string, token: string, post: ScheduledPost): Promise<PostingResult> {
+    const videoFile = post.media!.find(file => file.type.startsWith('video/'));
+    
+    const formData = new FormData();
+    formData.append('source', videoFile!);
+    formData.append('description', post.content);
+    formData.append('access_token', token);
+
+    const response = await fetch(`https://graph.facebook.com/v18.0/${pageId}/videos`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Facebook video error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    const result = await response.json();
+    return {
+      platform: 'facebook',
+      success: true,
+      postId: result.id
+    };
   }
 
   // Twitter OAuth 1.0a posting implementation
@@ -286,11 +389,23 @@ export class ProductionPostingService {
         throw new Error('Twitter account missing OAuth 1.0a credentials');
       }
 
-      // For OAuth 1.0a, we need to make signed requests
-      const tweetData = { status: post.content };
+      let mediaIds: string[] = [];
+
+      // Handle media uploads if present
+      if (post.media && post.media.length > 0) {
+        mediaIds = await this.uploadTwitterMedia(account, post.media);
+      }
+
+      // Create tweet with Twitter API v2
+      const tweetData: any = { text: post.content };
+      
+      if (mediaIds.length > 0) {
+        tweetData.media = { media_ids: mediaIds };
+      }
+
       const result = await this.makeTwitterOAuth1aRequest(
         'POST',
-        'https://api.twitter.com/1.1/statuses/update.json',
+        'https://api.twitter.com/2/tweets',
         tweetData,
         account.access_token,
         account.token_secret
@@ -299,7 +414,7 @@ export class ProductionPostingService {
       return {
         platform: 'twitter',
         success: true,
-        postId: result.id_str
+        postId: result.data.id
       };
     } catch (error) {
       return {
@@ -308,6 +423,140 @@ export class ProductionPostingService {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
+  }
+
+  private async uploadTwitterMedia(account: SocialAccount, mediaFiles: File[]): Promise<string[]> {
+    const mediaIds: string[] = [];
+
+    for (const file of mediaFiles) {
+      try {
+        const isVideo = file.type.startsWith('video/');
+        
+        if (isVideo) {
+          // Chunked upload for videos
+          const mediaId = await this.uploadTwitterVideoChunked(account, file);
+          if (mediaId) mediaIds.push(mediaId);
+        } else {
+          // Streaming upload for images
+          const mediaId = await this.uploadTwitterImageStreaming(account, file);
+          if (mediaId) mediaIds.push(mediaId);
+        }
+      } catch (error) {
+        console.error('Twitter media upload error:', error);
+      }
+    }
+
+    return mediaIds;
+  }
+
+  private async uploadTwitterVideoChunked(account: SocialAccount, file: File): Promise<string | null> {
+    try {
+      // Initialize upload
+      const initResult = await this.makeTwitterOAuth1aRequest(
+        'POST',
+        'https://upload.twitter.com/1.1/media/upload.json',
+        {
+          command: 'INIT',
+          total_bytes: file.size.toString(),
+          media_type: file.type,
+          media_category: 'tweet_video'
+        },
+        account.access_token,
+        account.token_secret
+      );
+
+      const mediaId = initResult.media_id_string;
+      const chunkSize = 5 * 1024 * 1024; // 5MB chunks
+      let segmentIndex = 0;
+
+      // Upload chunks
+      for (let start = 0; start < file.size; start += chunkSize) {
+        const chunk = file.slice(start, start + chunkSize);
+        const formData = new FormData();
+        formData.append('command', 'APPEND');
+        formData.append('media_id', mediaId);
+        formData.append('segment_index', segmentIndex.toString());
+        formData.append('media', chunk);
+
+        await fetch('https://upload.twitter.com/1.1/media/upload.json', {
+          method: 'POST',
+          headers: {
+            'Authorization': await this.generateTwitterAuthHeader('POST', 'https://upload.twitter.com/1.1/media/upload.json', account)
+          },
+          body: formData
+        });
+
+        segmentIndex++;
+      }
+
+      // Finalize upload
+      await this.makeTwitterOAuth1aRequest(
+        'POST',
+        'https://upload.twitter.com/1.1/media/upload.json',
+        {
+          command: 'FINALIZE',
+          media_id: mediaId
+        },
+        account.access_token,
+        account.token_secret
+      );
+
+      return mediaId;
+    } catch (error) {
+      console.error('Twitter video upload error:', error);
+      return null;
+    }
+  }
+
+  private async uploadTwitterImageStreaming(account: SocialAccount, file: File): Promise<string | null> {
+    try {
+      const formData = new FormData();
+      formData.append('media', file);
+      formData.append('media_category', 'tweet_image');
+
+      const response = await fetch('https://upload.twitter.com/1.1/media/upload.json', {
+        method: 'POST',
+        headers: {
+          'Authorization': await this.generateTwitterAuthHeader('POST', 'https://upload.twitter.com/1.1/media/upload.json', account)
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Twitter image upload failed: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.media_id_string;
+    } catch (error) {
+      console.error('Twitter image upload error:', error);
+      return null;
+    }
+  }
+
+  private async generateTwitterAuthHeader(method: string, url: string, account: SocialAccount): Promise<string> {
+    const consumerKey = 'YOUR_TWITTER_CONSUMER_KEY'; // This should come from environment
+    const consumerSecret = 'YOUR_TWITTER_CONSUMER_SECRET'; // This should come from environment
+    
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const nonce = Math.random().toString(36).substring(2, 15);
+
+    const oauthParams: Record<string, string> = {
+      oauth_consumer_key: consumerKey,
+      oauth_nonce: nonce,
+      oauth_signature_method: 'HMAC-SHA1',
+      oauth_timestamp: timestamp,
+      oauth_token: account.access_token,
+      oauth_version: '1.0'
+    };
+
+    const signature = await this.generateTwitterSignature(method, url, oauthParams, consumerSecret, account.token_secret || '');
+    oauthParams.oauth_signature = signature;
+
+    return 'OAuth ' + Object.keys(oauthParams)
+      .sort()
+      .map(key => `${encodeURIComponent(key)}="${encodeURIComponent(oauthParams[key])}"`)
+      .join(', ');
   }
 
   // Helper method for Twitter OAuth 1.0a signed requests
@@ -411,49 +660,24 @@ export class ProductionPostingService {
       const igUserId = account.metadata.ig_user_id;
       const token = account.page_access_token;
 
-      // For Instagram, we need images
+      // Instagram requires media
       if (!post.media || post.media.length === 0) {
-        throw new Error('Instagram posts require images');
+        throw new Error('Instagram posts require images or videos');
       }
 
-      // Create media container (simplified - in production you'd upload the image first)
-      const mediaResponse = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          image_url: 'https://example.com/placeholder-image.jpg', // You'd need to upload the actual image
-          caption: post.content,
-          access_token: token
-        })
-      });
-
-      if (!mediaResponse.ok) {
-        const errorData = await mediaResponse.json();
-        throw new Error(`Instagram media creation error: ${errorData.error?.message || 'Unknown error'}`);
+      const mediaFile = post.media[0];
+      const isVideo = mediaFile.type.startsWith('video/');
+      
+      // Create media container
+      const mediaContainer = await this.createInstagramMediaContainer(igUserId, token, mediaFile, post.content, isVideo);
+      
+      // Wait for processing if it's a video
+      if (isVideo) {
+        await this.waitForInstagramProcessing(igUserId, token, mediaContainer.id);
       }
-
-      const mediaResult = await mediaResponse.json();
 
       // Publish the media
-      const publishResponse = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media_publish`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          creation_id: mediaResult.id,
-          access_token: token
-        })
-      });
-
-      if (!publishResponse.ok) {
-        const errorData = await publishResponse.json();
-        throw new Error(`Instagram publish error: ${errorData.error?.message || 'Unknown error'}`);
-      }
-
-      const publishResult = await publishResponse.json();
+      const publishResult = await this.publishInstagramMedia(igUserId, token, mediaContainer.id);
       
       return {
         platform: 'instagram',
@@ -467,6 +691,89 @@ export class ProductionPostingService {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
+  }
+
+  private async createInstagramMediaContainer(igUserId: string, token: string, mediaFile: File, caption: string, isVideo: boolean): Promise<any> {
+    // First upload media to a temporary URL (in production, you'd use your own storage)
+    const mediaUrl = await this.uploadMediaToTemporaryStorage(mediaFile);
+    
+    const mediaData: any = {
+      caption,
+      access_token: token
+    };
+
+    if (isVideo) {
+      mediaData.media_type = 'REELS';
+      mediaData.video_url = mediaUrl;
+    } else {
+      mediaData.image_url = mediaUrl;
+    }
+
+    const response = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(mediaData)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Instagram media creation error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    return await response.json();
+  }
+
+  private async waitForInstagramProcessing(igUserId: string, token: string, containerId: string): Promise<void> {
+    const maxAttempts = 30;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      const response = await fetch(`https://graph.facebook.com/v18.0/${containerId}?fields=status_code&access_token=${token}`);
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        if (result.status_code === 'FINISHED') {
+          return;
+        } else if (result.status_code === 'ERROR') {
+          throw new Error('Instagram media processing failed');
+        }
+      }
+
+      // Wait 2 seconds before checking again
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      attempts++;
+    }
+
+    throw new Error('Instagram media processing timeout');
+  }
+
+  private async publishInstagramMedia(igUserId: string, token: string, containerId: string): Promise<any> {
+    const response = await fetch(`https://graph.facebook.com/v18.0/${igUserId}/media_publish`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        creation_id: containerId,
+        access_token: token
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Instagram publish error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+
+    return await response.json();
+  }
+
+  private async uploadMediaToTemporaryStorage(file: File): Promise<string> {
+    // In production, upload to your own storage service
+    // For now, return a placeholder URL
+    return 'https://example.com/temp-media/' + Date.now();
   }
 
   async validateAccounts(accounts: SocialAccount[]): Promise<{ account: SocialAccount; isValid: boolean }[]> {
@@ -527,6 +834,104 @@ export class ProductionPostingService {
     }
 
     return validationResults;
+  }
+
+  private async postToYouTube(account: SocialAccount, post: ScheduledPost): Promise<PostingResult> {
+    try {
+      if (!post.media || post.media.length === 0) {
+        throw new Error('YouTube requires video content');
+      }
+
+      const videoFile = post.media.find(file => file.type.startsWith('video/'));
+      if (!videoFile) {
+        throw new Error('YouTube requires video files');
+      }
+
+      // Create video metadata
+      const metadata = {
+        snippet: {
+          title: post.content.substring(0, 100) || 'Untitled Video',
+          description: post.content,
+          tags: [],
+          categoryId: '22', // People & Blogs
+          defaultLanguage: 'en'
+        },
+        status: {
+          privacyStatus: 'public',
+          embeddable: true,
+          license: 'youtube'
+        }
+      };
+
+      // Upload video using multipart upload
+      const result = await this.uploadYouTubeVideo(account.access_token, videoFile, metadata);
+
+      return {
+        platform: 'youtube',
+        success: true,
+        postId: result.id
+      };
+    } catch (error) {
+      return {
+        platform: 'youtube',
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  private async uploadYouTubeVideo(accessToken: string, videoFile: File, metadata: any): Promise<any> {
+    // Create multipart form data
+    const boundary = '-------314159265358979323846';
+    const delimiter = '\r\n--' + boundary + '\r\n';
+    const close_delim = '\r\n--' + boundary + '--';
+
+    // Create metadata part
+    const metadataPart = delimiter +
+      'Content-Type: application/json\r\n\r\n' +
+      JSON.stringify(metadata);
+
+    // Create video part
+    const videoPart = delimiter +
+      'Content-Type: ' + videoFile.type + '\r\n\r\n';
+
+    // Convert file to array buffer
+    const videoBuffer = await videoFile.arrayBuffer();
+
+    // Combine all parts
+    const multipartRequestBody = new Uint8Array(
+      new TextEncoder().encode(metadataPart + videoPart).length + 
+      videoBuffer.byteLength + 
+      new TextEncoder().encode(close_delim).length
+    );
+
+    let offset = 0;
+    const metadataBytes = new TextEncoder().encode(metadataPart + videoPart);
+    multipartRequestBody.set(metadataBytes, offset);
+    offset += metadataBytes.length;
+
+    multipartRequestBody.set(new Uint8Array(videoBuffer), offset);
+    offset += videoBuffer.byteLength;
+
+    const closeBytes = new TextEncoder().encode(close_delim);
+    multipartRequestBody.set(closeBytes, offset);
+
+    // Upload to YouTube
+    const response = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=multipart&part=snippet,status', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary="${boundary}"`
+      },
+      body: multipartRequestBody
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`YouTube upload error: ${response.status} - ${errorData}`);
+    }
+
+    return await response.json();
   }
 }
 
