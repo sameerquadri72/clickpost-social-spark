@@ -65,6 +65,16 @@ const PLATFORMS = [
     available: true,
     setupUrl: 'https://developers.facebook.com/apps',
     oauthVersion: '2.0'
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    icon: ExternalLink, // Using ExternalLink as a placeholder, you might want to import a YouTube icon
+    color: 'bg-red-600',
+    description: 'Upload videos and manage your YouTube channel',
+    available: true,
+    setupUrl: 'https://console.cloud.google.com/',
+    oauthVersion: '2.0'
   }
 ];
 

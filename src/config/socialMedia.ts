@@ -27,6 +27,15 @@ export const SOCIAL_MEDIA_CONFIG = {
     authUrl: 'https://twitter.com/i/oauth2/authorize',
     tokenUrl: 'https://api.twitter.com/2/oauth2/token',
     apiUrl: 'https://api.twitter.com/2'
+  },
+  youtube: {
+    clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+    clientSecret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '',
+    redirectUri: `${window.location.origin}/auth/youtube/callback`,
+    scope: 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly',
+    authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    apiUrl: 'https://www.googleapis.com/youtube/v3'
   }
 };
 

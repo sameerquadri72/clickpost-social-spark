@@ -5,7 +5,7 @@ import { productionOAuthService } from '@/services/productionOAuthService';
 
 export interface SocialAccount {
   id: string;
-  platform: 'linkedin' | 'facebook' | 'twitter' | 'instagram';
+  platform: 'linkedin' | 'facebook' | 'twitter' | 'instagram' | 'youtube';
   platform_user_id: string;
   name: string;
   username: string;
