@@ -15,13 +15,13 @@ Deno.serve(async (req) => {
   try {
     // Environment variables validation
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const linkedinClientId = Deno.env.get('LINKEDIN_CLIENT_ID');
     const linkedinClientSecret = Deno.env.get('LINKEDIN_CLIENT_SECRET');
 
     console.log('LinkedIn OAuth Environment Check:', {
       hasSupabaseUrl: !!supabaseUrl,
-      hasSupabaseAnonKey: !!supabaseAnonKey,
+      hasSupabaseServiceKey: !!supabaseServiceKey,
       hasLinkedInClientId: !!linkedinClientId,
       hasLinkedInClientSecret: !!linkedinClientSecret,
       method: req.method,
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     });
 
     // Validate required environment variables
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase configuration');
     }
 
@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       throw new Error('LinkedIn OAuth credentials not configured. Please set LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET in your Supabase project secrets.');
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse URL to determine action
     const url = new URL(req.url);

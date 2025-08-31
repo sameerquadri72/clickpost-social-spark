@@ -14,20 +14,20 @@ Deno.serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const twitterConsumerKey = Deno.env.get('TWITTER_CONSUMER_KEY');
     const twitterConsumerSecret = Deno.env.get('TWITTER_CONSUMER_SECRET');
 
     console.log('Twitter OAuth 1.0a Environment Check:', {
       hasSupabaseUrl: !!supabaseUrl,
-      hasSupabaseAnonKey: !!supabaseAnonKey,
+      hasSupabaseServiceKey: !!supabaseServiceKey,
       hasTwitterConsumerKey: !!twitterConsumerKey,
       hasTwitterConsumerSecret: !!twitterConsumerSecret,
       method: req.method,
       url: req.url
     });
 
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Missing Supabase configuration');
     }
 
@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
       throw new Error('Twitter OAuth 1.0a credentials not configured. Please set TWITTER_CONSUMER_KEY and TWITTER_CONSUMER_SECRET in your Supabase project secrets.');
     }
 
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
     const url = new URL(req.url);
     const pathParts = url.pathname.split('/');
     const action = pathParts[pathParts.length - 1];
