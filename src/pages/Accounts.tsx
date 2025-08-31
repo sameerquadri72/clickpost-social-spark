@@ -145,39 +145,12 @@ export const Accounts: React.FC = () => {
         </p>
       </div>
 
-      {/* Setup Required Alert */}
-      <Alert>
-        <Settings className="h-4 w-4" />
-        <AlertDescription>
-          <strong>OAuth Setup Required:</strong> To connect real social media accounts, OAuth credentials must be configured in your Supabase project secrets. 
-          <a 
-            href="https://supabase.com/docs/guides/functions/secrets" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 underline ml-1"
-          >
-            Learn how to set up secrets
-            <ExternalLink className="h-3 w-3 inline ml-1" />
-          </a>
-        </AlertDescription>
-      </Alert>
-
       {/* Error Alert */}
       {lastError && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             <strong>Connection Error:</strong> {lastError}
-            {(lastError || '').toLowerCase().includes('credentials') && (
-              <div className="mt-2 text-sm">
-                <p>Required Supabase secrets for each platform:</p>
-                <ul className="list-disc list-inside mt-1 space-y-1">
-                  <li>LinkedIn: LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET</li>
-                  <li>Facebook: FACEBOOK_APP_ID, FACEBOOK_APP_SECRET</li>
-                  <li>Twitter: TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET</li>
-                </ul>
-              </div>
-            )}
           </AlertDescription>
         </Alert>
       )}
@@ -289,13 +262,18 @@ export const Accounts: React.FC = () => {
       {/* Available Platforms */}
       <Card>
         <CardHeader>
-          <CardTitle>Available Platforms</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <span>Connect Platforms</span>
+            <Badge variant="outline" className="text-xs">
+              Multiple accounts per platform supported
+            </Badge>
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {PLATFORMS.map((platform) => {
               const Icon = platform.icon;
-              const isConnected = isAccountConnected(platform.id);
+              const platformAccounts = connectedAccounts.filter(account => account.platform === platform.id);
               const isLoading = connectingPlatform === platform.id;
               
               return (
@@ -311,105 +289,54 @@ export const Accounts: React.FC = () => {
                           <Badge variant="outline" className="text-xs">
                             OAuth {platform.oauthVersion}
                           </Badge>
+                          {platformAccounts.length > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {platformAccounts.length} connected
+                            </Badge>
+                          )}
                         </div>
                         <p className="text-sm text-slate-600 mt-1">{platform.description}</p>
-                        <a 
-                          href={platform.setupUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-800 underline mt-2 inline-flex items-center"
-                        >
-                          Developer Console
-                          <ExternalLink className="h-3 w-3 ml-1" />
-                        </a>
+                        {platformAccounts.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {platformAccounts.slice(0, 2).map((account) => (
+                              <div key={account.id} className="text-xs text-slate-500 flex items-center">
+                                <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
+                                @{account.username}
+                              </div>
+                            ))}
+                            {platformAccounts.length > 2 && (
+                              <div className="text-xs text-slate-500">
+                                +{platformAccounts.length - 2} more accounts
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end space-y-2">
-                      {isConnected ? (
-                        <Badge variant="outline" className="text-green-600 border-green-600">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Connected
-                        </Badge>
-                      ) : (
-                        <Button
-                          onClick={() => handleConnect(platform.id)}
-                          disabled={isLoading || !platform.available}
-                          size="sm"
-                        >
-                          {isLoading ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Connecting...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-4 w-4 mr-2" />
-                              Connect
-                            </>
-                          )}
-                        </Button>
-                      )}
+                      <Button
+                        onClick={() => handleConnect(platform.id)}
+                        disabled={isLoading || !platform.available}
+                        size="sm"
+                        variant={platformAccounts.length > 0 ? "outline" : "default"}
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            {platformAccounts.length > 0 ? 'Add Another' : 'Connect'}
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 </div>
               );
             })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Production Setup Instructions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Production Setup Guide</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="prose prose-sm max-w-none">
-            <h4>Step 1: Create OAuth Applications</h4>
-            <p>Create developer applications for each platform you want to support:</p>
-            <ul>
-              <li><strong>LinkedIn:</strong> <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">LinkedIn Developer Console</a></li>
-              <li><strong>Facebook:</strong> <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Facebook Developer Console</a></li>
-              <li><strong>Twitter:</strong> <a href="https://developer.twitter.com/en/portal/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Twitter Developer Portal</a> (Enable OAuth 1.0a)</li>
-            </ul>
-            
-            <h4>Step 2: Configure OAuth Redirect URIs</h4>
-            <p>In each OAuth application, set the redirect URI to:</p>
-            <div className="bg-slate-100 p-3 rounded-lg font-mono text-sm">
-              <p>LinkedIn: <code>{window.location.origin}/functions/v1/linkedin-oauth/callback</code></p>
-              <p>Facebook: <code>{window.location.origin}/functions/v1/facebook-oauth/callback</code></p>
-              <p>Twitter: <code>{window.location.origin}/functions/v1/twitter-oauth/callback</code></p>
-            </div>
-            
-            <h4>Step 3: Configure Supabase Secrets</h4>
-            <p>Add the following secrets to your Supabase project:</p>
-            <div className="bg-slate-100 p-3 rounded-lg">
-              <ul className="space-y-1 text-sm font-mono">
-                <li>LINKEDIN_CLIENT_ID</li>
-                <li>LINKEDIN_CLIENT_SECRET</li>
-                <li>FACEBOOK_APP_ID</li>
-                <li>FACEBOOK_APP_SECRET</li>
-                <li>TWITTER_CONSUMER_KEY (for OAuth 1.0a)</li>
-                <li>TWITTER_CONSUMER_SECRET (for OAuth 1.0a)</li>
-              </ul>
-            </div>
-            
-            <h4>Step 4: Deploy Edge Functions</h4>
-            <p>The OAuth Edge Functions are already included in your project. Deploy them using:</p>
-            <div className="bg-slate-100 p-3 rounded-lg font-mono text-sm">
-              <code>supabase functions deploy</code>
-            </div>
-            
-            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <h5 className="font-medium text-green-800">Security Features:</h5>
-              <ul className="text-sm text-green-700 mt-2 space-y-1">
-                <li>• Twitter uses OAuth 1.0a with cryptographic signatures</li>
-                <li>• LinkedIn/Facebook use OAuth 2.0 with PKCE</li>
-                <li>• State parameter validation for CSRF protection</li>
-                <li>• Secure token storage in Supabase</li>
-                <li>• Row-level security for user data isolation</li>
-              </ul>
-            </div>
           </div>
         </CardContent>
       </Card>
