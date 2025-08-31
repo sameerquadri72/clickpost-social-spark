@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Facebook, Twitter, Linkedin, Instagram, Image } from 'lucide-react';
+import { Facebook, Twitter, Linkedin, Instagram, ExternalLink, Image } from 'lucide-react';
 
 const PLATFORM_CONFIG = {
   facebook: {
@@ -28,6 +28,12 @@ const PLATFORM_CONFIG = {
     icon: Instagram,
     color: 'bg-pink-500',
     textColor: 'text-pink-700'
+  },
+  youtube: {
+    name: 'YouTube',
+    icon: ExternalLink,
+    color: 'bg-red-600',
+    textColor: 'text-red-700'
   }
 };
 
@@ -47,7 +53,8 @@ export const PostPreview: React.FC<PostPreviewProps> = ({
       facebook: 63206,
       twitter: 280,
       linkedin: 3000,
-      instagram: 2200
+      instagram: 2200,
+      youtube: 5000
     };
     
     const limit = limits[platform as keyof typeof limits];

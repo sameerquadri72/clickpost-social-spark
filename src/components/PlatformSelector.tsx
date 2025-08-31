@@ -2,7 +2,7 @@
 import React from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Facebook, Twitter, Linkedin, Instagram } from 'lucide-react';
+import { Facebook, Twitter, Linkedin, Instagram, ExternalLink } from 'lucide-react';
 
 const PLATFORMS = [
   {
@@ -36,6 +36,14 @@ const PLATFORMS = [
     color: 'text-pink-600',
     bgColor: 'bg-pink-100',
     limit: '2,200 chars'
+  },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    icon: ExternalLink,
+    color: 'text-red-600',
+    bgColor: 'bg-red-100',
+    limit: '5,000 chars'
   }
 ];
 

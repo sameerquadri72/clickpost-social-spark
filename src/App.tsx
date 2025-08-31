@@ -1,3 +1,4 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { PostsProvider } from "@/contexts/PostsContext";
 import { SocialAccountsProvider } from "@/contexts/SocialAccountsContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { scheduledPublishingService } from "@/services/scheduledPublishingService";
 import { Layout } from "@/components/Layout";
 import { Landing } from "@/pages/Landing";
 import { Login } from "@/pages/Login";
@@ -20,15 +22,29 @@ import { Accounts } from "@/pages/Accounts";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <SocialAccountsProvider>
-          <PostsProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
+const App = () => {
+  // Start the scheduled publishing service when the app loads
+  React.useEffect(() => {
+    // Start the service after a short delay to ensure auth is ready
+    const timer = setTimeout(() => {
+      scheduledPublishingService.start();
+    }, 2000);
+
+    return () => {
+      clearTimeout(timer);
+      scheduledPublishingService.stop();
+    };
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AuthProvider>
+          <SocialAccountsProvider>
+            <PostsProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Landing />} />
                 <Route path="/login" element={<Login />} />

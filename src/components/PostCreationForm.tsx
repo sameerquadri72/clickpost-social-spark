@@ -7,13 +7,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PlatformSelector } from '@/components/PlatformSelector';
 import { MediaUpload } from '@/components/MediaUpload';
 import { PostPreview } from '@/components/PostPreview';
-import { SchedulingInterface } from '@/components/SchedulingInterface';
-import { ContentTemplates } from '@/components/ContentTemplates';
-import { Save, Send, Clock, FileText, Calendar } from 'lucide-react';
+import { ScheduledPostsList } from '@/components/ScheduledPostsList';
+import { PostedPostsList } from '@/components/PostedPostsList';
+import { DraftPostsList } from '@/components/DraftPostsList';
+import { Save, Send, Clock, FileText, Calendar, CheckCircle, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { usePosts } from '@/contexts/PostsContext';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { productionPostingService } from '@/services/productionPostingService';
+import { getUserTimezone, localTimeToUTC } from '@/utils/timezoneUtils';
 
 const PLATFORM_LIMITS = {
   facebook: 63206,
@@ -26,10 +28,11 @@ export const PostCreationForm: React.FC = () => {
   const [content, setContent] = useState('');
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([]);
-  const [activeTab, setActiveTab] = useState('create');
+  const [activeTab, setActiveTab] = useState('scheduled');
   const { toast } = useToast();
   const { addScheduledPost } = usePosts();
   const { getActiveAccounts } = useSocialAccounts();
+  const userTimezone = getUserTimezone();
 
   // Auto-save functionality
   useEffect(() => {
@@ -90,7 +93,7 @@ export const PostCreationForm: React.FC = () => {
     });
   };
 
-  const handleSchedulePost = (scheduleData: any) => {
+  const handleSchedulePost = async (scheduleData: any) => {
     if (isOverLimit) {
       toast({
         title: "Character Limit Exceeded",
@@ -100,28 +103,40 @@ export const PostCreationForm: React.FC = () => {
       return;
     }
     
-    // Add the scheduled post to the context
-    addScheduledPost({
-      title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
-      content,
-      platforms: selectedPlatforms,
-      scheduledFor: scheduleData.dateTime,
-      status: 'scheduled',
-      media: uploadedMedia,
-      timeZone: scheduleData.timeZone,
-      repeat: scheduleData.repeat
-    });
-    
-    console.log('Scheduling post:', { content, selectedPlatforms, uploadedMedia, scheduleData });
-    toast({
-      title: "Post Scheduled",
-      description: `Your post has been scheduled for ${scheduleData.dateTime.toLocaleString()}`,
-    });
-    
-    // Clear the form after scheduling
-    setContent('');
-    setUploadedMedia([]);
-    localStorage.removeItem('postDraft');
+    try {
+      // Add the scheduled post to the context
+             // Convert local time to UTC for storage
+       const utcScheduledTime = localTimeToUTC(scheduleData.dateTime, scheduleData.timeZone || userTimezone);
+       
+       await addScheduledPost({
+         title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
+         content,
+         platforms: selectedPlatforms,
+         scheduled_for: utcScheduledTime,
+         status: 'scheduled',
+         media_urls: [], // Will be updated when media upload is implemented
+         time_zone: scheduleData.timeZone || userTimezone,
+         repeat: scheduleData.repeat
+       });
+      
+      console.log('Scheduling post:', { content, selectedPlatforms, uploadedMedia, scheduleData });
+      toast({
+        title: "Post Scheduled",
+        description: `Your post has been scheduled for ${scheduleData.dateTime.toLocaleString()}`,
+      });
+      
+      // Clear the form after scheduling
+      setContent('');
+      setUploadedMedia([]);
+      localStorage.removeItem('postDraft');
+    } catch (error) {
+      console.error('Failed to schedule post:', error);
+      toast({
+        title: "Scheduling Failed",
+        description: "Failed to schedule your post. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePostNow = async () => {
@@ -154,11 +169,11 @@ export const PostCreationForm: React.FC = () => {
       title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
       content,
       platforms: selectedPlatforms,
-      scheduledFor: new Date(),
+      scheduled_for: new Date(),
       status: 'publishing' as const,
       color: 'bg-blue-500',
-      media: uploadedMedia,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      media_urls: [], // Will be updated when media upload is implemented
+      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone
     };
 
     try {
@@ -216,24 +231,70 @@ export const PostCreationForm: React.FC = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Main Creation Interface */}
-      <div className="lg:col-span-2">
+    <div className="flex gap-6">
+      {/* Main Content Interface */}
+      <div className="flex-1">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="create" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Create
-            </TabsTrigger>
-            <TabsTrigger value="schedule" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="scheduled" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Schedule
+              Scheduled
             </TabsTrigger>
-            <TabsTrigger value="templates" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Templates
+            <TabsTrigger value="posted" className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4" />
+              Posted
+            </TabsTrigger>
+            <TabsTrigger value="drafts" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Drafts
+            </TabsTrigger>
+            <TabsTrigger value="create" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Create New
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="scheduled" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Scheduled Posts</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Manage your scheduled posts across all platforms
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ScheduledPostsList />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="posted" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Posted Content</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  View all your published posts and their performance
+                </p>
+              </CardHeader>
+              <CardContent>
+                <PostedPostsList />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="drafts" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Draft Posts</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Edit and manage your saved drafts
+                </p>
+              </CardHeader>
+              <CardContent>
+                <DraftPostsList />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="create" className="space-y-6">
             <Card>
@@ -299,54 +360,45 @@ export const PostCreationForm: React.FC = () => {
               </CardContent>
             </Card>
           </TabsContent>
-
-          <TabsContent value="schedule">
-            <SchedulingInterface 
-              onSchedule={handleSchedulePost}
-              selectedPlatforms={selectedPlatforms}
-            />
-          </TabsContent>
-
-          <TabsContent value="templates">
-            <ContentTemplates onSelectTemplate={handleTemplateSelect} />
-          </TabsContent>
         </Tabs>
       </div>
 
-      {/* Preview Panel */}
-      <div className="space-y-6">
-        <PostPreview 
-          content={content}
-          selectedPlatforms={selectedPlatforms}
-          uploadedMedia={uploadedMedia}
-        />
-        
-        {/* Quick Stats */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Stats</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Platforms:</span>
-                <span>{selectedPlatforms.length}</span>
+      {/* Sticky Preview Panel */}
+      <div className="w-80 flex-shrink-0">
+        <div className="sticky top-6 space-y-6">
+          <PostPreview 
+            content={content}
+            selectedPlatforms={selectedPlatforms}
+            uploadedMedia={uploadedMedia}
+          />
+          
+          {/* Quick Stats */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Stats</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Platforms:</span>
+                  <span>{selectedPlatforms.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Media Files:</span>
+                  <span>{uploadedMedia.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Character Count:</span>
+                  <span className={isOverLimit ? 'text-red-500' : ''}>{content.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Est. Reach:</span>
+                  <span className="text-green-600">~{selectedPlatforms.length * 1000}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-sm">
-                <span>Media Files:</span>
-                <span>{uploadedMedia.length}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Character Count:</span>
-                <span className={isOverLimit ? 'text-red-500' : ''}>{content.length}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Est. Reach:</span>
-                <span className="text-green-600">~{selectedPlatforms.length * 1000}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
