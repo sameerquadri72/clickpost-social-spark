@@ -77,7 +77,8 @@ export const PostsProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         ...post,
         scheduled_for: new Date(post.scheduled_for),
         created_at: new Date(post.created_at),
-        updated_at: new Date(post.updated_at)
+        updated_at: new Date(post.updated_at),
+        status: post.status as 'scheduled' | 'draft' | 'published' | 'failed' | 'publishing'
       }));
 
       setScheduledPosts(transformedPosts);

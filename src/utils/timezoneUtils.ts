@@ -1,4 +1,4 @@
-import { format, formatInTimeZone, utcToZonedTime, zonedTimeToUtc } from 'date-fns-tz';
+import { format, formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 // Get user's current timezone
 export const getUserTimezone = (): string => {
@@ -13,7 +13,7 @@ export const getUserTimezone = (): string => {
 // Convert local time to UTC for storage
 export const localTimeToUTC = (localDateTime: Date, timezone: string): Date => {
   try {
-    return zonedTimeToUtc(localDateTime, timezone);
+    return fromZonedTime(localDateTime, timezone);
   } catch (error) {
     // Fallback: assume the date is already in the specified timezone
     return localDateTime;
@@ -23,7 +23,7 @@ export const localTimeToUTC = (localDateTime: Date, timezone: string): Date => {
 // Convert UTC time back to user's local timezone for display
 export const utcToLocalTime = (utcDateTime: Date, timezone: string): Date => {
   try {
-    return utcToZonedTime(utcDateTime, timezone);
+    return toZonedTime(utcDateTime, timezone);
   } catch (error) {
     // Fallback: return UTC time if conversion fails
     return utcDateTime;

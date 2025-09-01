@@ -23,7 +23,7 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
 
   const getPostsForDate = (date: Date) => {
     return scheduledPosts.filter(post => 
-      isSameDay(post.scheduledFor, date)
+      isSameDay(post.scheduled_for, date)
     );
   };
 
@@ -75,7 +75,7 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
             >
               <div className="flex items-center gap-1 mb-1">
                 <Clock className="h-3 w-3" />
-                {format(post.scheduledFor, 'HH:mm')}
+                {format(post.scheduled_for, 'HH:mm')}
               </div>
               <div className="truncate">{post.title}</div>
             </div>
@@ -228,15 +228,15 @@ export const PostCalendar: React.FC<PostCalendarProps> = ({
                     <div className="flex items-center gap-4 text-xs text-slate-500">
                       <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {format(post.scheduledFor, 'HH:mm')}
+                        {format(post.scheduled_for, 'HH:mm')}
                       </div>
                       <div className="flex items-center gap-1">
                         <Users className="h-3 w-3" />
                         {post.platforms.join(', ')}
                       </div>
-                      {post.timeZone && (
+                      {post.time_zone && (
                         <div className="text-xs text-slate-400">
-                          {post.timeZone}
+                          {post.time_zone}
                         </div>
                       )}
                     </div>

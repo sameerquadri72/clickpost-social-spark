@@ -28,8 +28,8 @@ export const Calendar: React.FC = () => {
   };
 
   // Calculate stats from scheduled posts
-  const thisWeekPosts = scheduledPosts.filter(post => isThisWeek(post.scheduledFor));
-  const thisMonthPosts = scheduledPosts.filter(post => isThisMonth(post.scheduledFor));
+  const thisWeekPosts = scheduledPosts.filter(post => isThisWeek(post.scheduled_for));
+  const thisMonthPosts = scheduledPosts.filter(post => isThisMonth(post.scheduled_for));
   const draftPosts = scheduledPosts.filter(post => post.status === 'draft');
   const publishedPosts = scheduledPosts.filter(post => post.status === 'published');
 
@@ -38,7 +38,7 @@ export const Calendar: React.FC = () => {
     .filter(post => {
       const now = new Date();
       const weekFromNow = addDays(now, 7);
-      return post.scheduledFor >= now && post.scheduledFor <= weekFromNow;
+      return post.scheduled_for >= now && post.scheduled_for <= weekFromNow;
     })
     .slice(0, 3);
 
@@ -149,7 +149,7 @@ export const Calendar: React.FC = () => {
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                   <div>
                     <h4 className="font-medium">{post.title}</h4>
-                    <p className="text-sm text-slate-600">{post.scheduledFor.toLocaleString()}</p>
+                    <p className="text-sm text-slate-600">{post.scheduled_for.toLocaleString()}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

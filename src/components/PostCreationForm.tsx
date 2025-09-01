@@ -166,6 +166,7 @@ export const PostCreationForm: React.FC = () => {
     // Create a temporary post object for publishing
     const postToPublish = {
       id: Date.now().toString(),
+      user_id: 'temp', // Will be set by service
       title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
       content,
       platforms: selectedPlatforms,
@@ -173,7 +174,9 @@ export const PostCreationForm: React.FC = () => {
       status: 'publishing' as const,
       color: 'bg-blue-500',
       media_urls: [], // Will be updated when media upload is implemented
-      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      created_at: new Date(),
+      updated_at: new Date()
     };
 
     try {

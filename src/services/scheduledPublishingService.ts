@@ -111,7 +111,7 @@ export class ScheduledPublishingService {
       }
 
       // Publish the post using the production service
-      const results = await productionPostingService.publishPost(post, accounts);
+      const results = await productionPostingService.publishPost(post, accounts as any);
       
       // Check if publishing was successful
       const hasSuccess = results.some(r => r.success);

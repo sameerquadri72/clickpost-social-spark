@@ -14,13 +14,13 @@ export const Dashboard: React.FC = () => {
 
   // Calculate real metrics from actual data
   const activeAccounts = accounts.filter(account => account.is_active);
-  const postsThisMonth = scheduledPosts.filter(post => isThisMonth(post.scheduledFor));
+  const postsThisMonth = scheduledPosts.filter(post => isThisMonth(post.scheduled_for));
   const publishedPosts = scheduledPosts.filter(post => post.status === 'published');
-  const todaysPosts = scheduledPosts.filter(post => isToday(post.scheduledFor));
+  const todaysPosts = scheduledPosts.filter(post => isToday(post.scheduled_for));
   const upcomingPosts = scheduledPosts.filter(post => {
     const now = new Date();
     const weekFromNow = addDays(now, 7);
-    return post.scheduledFor >= now && post.scheduledFor <= weekFromNow;
+    return post.scheduled_for >= now && post.scheduled_for <= weekFromNow;
   }).slice(0, 5);
 
   const statsData = [
@@ -131,7 +131,7 @@ export const Dashboard: React.FC = () => {
                             </span>
                           ))}
                         </div>
-                        <span>{format(post.scheduledFor, 'MMM d, yyyy HH:mm')}</span>
+                        <span>{format(post.scheduled_for, 'MMM d, yyyy HH:mm')}</span>
                         <span className={`px-2 py-1 rounded-full ${
                           post.status === 'scheduled' 
                             ? 'bg-green-100 text-green-700' 
@@ -176,7 +176,7 @@ export const Dashboard: React.FC = () => {
                     <div className="flex-1">
                       <h4 className="font-medium text-sm line-clamp-1">{post.title}</h4>
                       <p className="text-xs text-slate-600 mt-1">
-                        {format(post.scheduledFor, 'MMM d, yyyy HH:mm')}
+                        {format(post.scheduled_for, 'MMM d, yyyy HH:mm')}
                       </p>
                       <div className="flex gap-1 mt-2">
                         {post.platforms.map((platform) => (
@@ -246,7 +246,7 @@ export const Dashboard: React.FC = () => {
                   <div className="flex-1">
                     <h4 className="font-medium text-sm">{post.title}</h4>
                     <p className="text-xs text-slate-600 mt-1">
-                      {format(post.scheduledFor, 'HH:mm')} • {post.platforms.join(', ')}
+                      {format(post.scheduled_for, 'HH:mm')} • {post.platforms.join(', ')}
                     </p>
                   </div>
                   <Badge variant={post.status === 'published' ? 'default' : 'secondary'}>
