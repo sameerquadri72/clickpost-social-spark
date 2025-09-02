@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PlatformSelector } from '@/components/PlatformSelector';
+import { ConnectedAccountSelector } from '@/components/ConnectedAccountSelector';
 import { MediaUpload } from '@/components/MediaUpload';
 import { PostPreview } from '@/components/PostPreview';
 import { ScheduledPostsList } from '@/components/ScheduledPostsList';
@@ -26,7 +26,7 @@ const PLATFORM_LIMITS = {
 
 export const PostCreationForm: React.FC = () => {
   const [content, setContent] = useState('');
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['facebook']);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([]);
   const [activeTab, setActiveTab] = useState('scheduled');
   const { toast } = useToast();
@@ -40,7 +40,7 @@ export const PostCreationForm: React.FC = () => {
       if (content.trim()) {
         const draftData = {
           content,
-          selectedPlatforms,
+          selectedAccountIds,
           uploadedMedia: uploadedMedia.map(file => file.name),
           timestamp: new Date().toISOString()
         };
@@ -50,7 +50,7 @@ export const PostCreationForm: React.FC = () => {
     }, 30000); // Auto-save every 30 seconds
 
     return () => clearInterval(autoSave);
-  }, [content, selectedPlatforms, uploadedMedia]);
+  }, [content, selectedAccountIds, uploadedMedia]);
 
   // Load draft on mount
   useEffect(() => {
@@ -59,7 +59,7 @@ export const PostCreationForm: React.FC = () => {
       try {
         const draftData = JSON.parse(savedDraft);
         setContent(draftData.content || '');
-        setSelectedPlatforms(draftData.selectedPlatforms || ['facebook']);
+        setSelectedAccountIds(draftData.selectedAccountIds || []);
       } catch (error) {
         console.error('Failed to load draft:', error);
       }
@@ -67,11 +67,19 @@ export const PostCreationForm: React.FC = () => {
   }, []);
 
   const getCharacterLimit = () => {
-    if (selectedPlatforms.length === 1) {
-      return PLATFORM_LIMITS[selectedPlatforms[0] as keyof typeof PLATFORM_LIMITS];
+    const activeAccounts = getActiveAccounts();
+    const selectedAccounts = activeAccounts.filter(account => 
+      selectedAccountIds.includes(account.id)
+    );
+    
+    if (selectedAccounts.length === 0) return 280; // Default Twitter limit
+    
+    const platforms = selectedAccounts.map(account => account.platform);
+    if (platforms.length === 1) {
+      return PLATFORM_LIMITS[platforms[0] as keyof typeof PLATFORM_LIMITS] || 280;
     }
-    return Math.min(...selectedPlatforms.map(platform => 
-      PLATFORM_LIMITS[platform as keyof typeof PLATFORM_LIMITS]
+    return Math.min(...platforms.map(platform => 
+      PLATFORM_LIMITS[platform as keyof typeof PLATFORM_LIMITS] || 280
     ));
   };
 
@@ -81,7 +89,7 @@ export const PostCreationForm: React.FC = () => {
   const handleSaveDraft = () => {
     const draftData = {
       content,
-      selectedPlatforms,
+      selectedAccountIds,
       uploadedMedia: uploadedMedia.map(file => file.name),
       timestamp: new Date().toISOString()
     };
@@ -108,18 +116,40 @@ export const PostCreationForm: React.FC = () => {
              // Convert local time to UTC for storage
        const utcScheduledTime = localTimeToUTC(scheduleData.dateTime, scheduleData.timeZone || userTimezone);
        
+       const activeAccounts = getActiveAccounts();
+       const selectedAccounts = activeAccounts.filter(account => 
+         selectedAccountIds.includes(account.id)
+       );
+       const platforms = selectedAccounts.map(account => account.platform);
+
+       // Upload media files first if any
+       const mediaUrls: string[] = [];
+       for (const file of uploadedMedia) {
+         try {
+           // Create a simple data URL for now - in production, upload to storage
+           const dataUrl = await new Promise<string>((resolve) => {
+             const reader = new FileReader();
+             reader.onload = (e) => resolve(e.target?.result as string);
+             reader.readAsDataURL(file);
+           });
+           mediaUrls.push(dataUrl);
+         } catch (error) {
+           console.error('Failed to process media file:', error);
+         }
+       }
+
        await addScheduledPost({
          title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
          content,
-         platforms: selectedPlatforms,
+         platforms,
          scheduled_for: utcScheduledTime,
          status: 'scheduled',
-         media_urls: [], // Will be updated when media upload is implemented
+         media_urls: mediaUrls,
          time_zone: scheduleData.timeZone || userTimezone,
          repeat: scheduleData.repeat
        });
       
-      console.log('Scheduling post:', { content, selectedPlatforms, uploadedMedia, scheduleData });
+      console.log('Scheduling post:', { content, selectedAccountIds, uploadedMedia, scheduleData });
       toast({
         title: "Post Scheduled",
         description: `Your post has been scheduled for ${scheduleData.dateTime.toLocaleString()}`,
@@ -151,7 +181,7 @@ export const PostCreationForm: React.FC = () => {
 
     const activeAccounts = getActiveAccounts();
     const selectedAccounts = activeAccounts.filter(account => 
-      selectedPlatforms.includes(account.platform)
+      selectedAccountIds.includes(account.id)
     );
 
     if (selectedAccounts.length === 0) {
@@ -163,17 +193,35 @@ export const PostCreationForm: React.FC = () => {
       return;
     }
 
+    // Process media files first
+    const mediaUrls: string[] = [];
+    for (const file of uploadedMedia) {
+      try {
+        // Create a simple data URL for now - in production, upload to storage
+        const dataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+        mediaUrls.push(dataUrl);
+      } catch (error) {
+        console.error('Failed to process media file:', error);
+      }
+    }
+
+    const platforms = selectedAccounts.map(account => account.platform);
+
     // Create a temporary post object for publishing
     const postToPublish = {
       id: Date.now().toString(),
       user_id: 'temp', // Will be set by service
       title: content.slice(0, 50) + (content.length > 50 ? '...' : ''),
       content,
-      platforms: selectedPlatforms,
+      platforms,
       scheduled_for: new Date(),
       status: 'publishing' as const,
       color: 'bg-blue-500',
-      media_urls: [], // Will be updated when media upload is implemented
+      media_urls: mediaUrls,
       time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       created_at: new Date(),
       updated_at: new Date()
@@ -224,7 +272,12 @@ export const PostCreationForm: React.FC = () => {
 
   const handleTemplateSelect = (template: any) => {
     setContent(template.content);
-    setSelectedPlatforms(template.platforms);
+    // Map template platforms to account IDs
+    const activeAccounts = getActiveAccounts();
+    const matchingAccountIds = activeAccounts
+      .filter(account => template.platforms.includes(account.platform))
+      .map(account => account.id);
+    setSelectedAccountIds(matchingAccountIds);
     setActiveTab('create');
     
     toast({
@@ -305,12 +358,12 @@ export const PostCreationForm: React.FC = () => {
                 <CardTitle>Create Your Post</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Platform Selection */}
+                {/* Account Selection */}
                 <div>
-                  <Label htmlFor="platforms">Select Platforms</Label>
-                  <PlatformSelector 
-                    selectedPlatforms={selectedPlatforms}
-                    onPlatformChange={setSelectedPlatforms}
+                  <Label htmlFor="accounts">Select Connected Accounts</Label>
+                  <ConnectedAccountSelector 
+                    selectedAccountIds={selectedAccountIds}
+                    onAccountChange={setSelectedAccountIds}
                   />
                 </div>
 
@@ -328,7 +381,7 @@ export const PostCreationForm: React.FC = () => {
                     <span className={`text-sm ${isOverLimit ? 'text-red-500' : 'text-slate-500'}`}>
                       {content.length} / {currentLimit} characters
                     </span>
-                    {selectedPlatforms.length > 1 && (
+                    {selectedAccountIds.length > 1 && (
                       <span className="text-xs text-slate-400">
                         Limit based on most restrictive platform
                       </span>
@@ -371,7 +424,10 @@ export const PostCreationForm: React.FC = () => {
         <div className="sticky top-6 space-y-6">
           <PostPreview 
             content={content}
-            selectedPlatforms={selectedPlatforms}
+            selectedPlatforms={getActiveAccounts()
+              .filter(account => selectedAccountIds.includes(account.id))
+              .map(account => account.platform)
+            }
             uploadedMedia={uploadedMedia}
           />
           
@@ -383,8 +439,8 @@ export const PostCreationForm: React.FC = () => {
             <CardContent>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Platforms:</span>
-                  <span>{selectedPlatforms.length}</span>
+                  <span>Accounts:</span>
+                  <span>{selectedAccountIds.length}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Media Files:</span>
@@ -396,7 +452,7 @@ export const PostCreationForm: React.FC = () => {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Est. Reach:</span>
-                  <span className="text-green-600">~{selectedPlatforms.length * 1000}</span>
+                  <span className="text-green-600">~{selectedAccountIds.length * 1000}</span>
                 </div>
               </div>
             </CardContent>
