@@ -43,23 +43,30 @@ Deno.serve(async (req) => {
 
     console.log('Processing Twitter OAuth 1.0a action:', action);
 
-    // Handle login initiation (equivalent to /api/twitter/login)
-    if (req.method === 'POST' && action === 'index') {
-      const body = await req.json();
-      if (body.action === 'initiate') {
-        const authHeader = req.headers.get('Authorization');
-        if (!authHeader) {
-          throw new Error('Missing authorization header');
-        }
-
-        const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
+    // Handle initiation (POST request from frontend)
+    if (req.method === 'POST') {
+      try {
+        const body = await req.json();
+        console.log('POST body:', body);
         
-        if (userError || !user) {
-          console.error('User authentication error:', userError);
-          throw new Error('Unauthorized - invalid or expired token');
-        }
+        if (body.action === 'initiate') {
+          const authHeader = req.headers.get('Authorization');
+          if (!authHeader) {
+            throw new Error('Missing authorization header');
+          }
 
-        return await initiateTwitterOAuth1a(supabaseClient, user.id, supabaseUrl, twitterConsumerKey, twitterConsumerSecret);
+          const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
+          
+          if (userError || !user) {
+            console.error('User authentication error:', userError);
+            throw new Error('Unauthorized - invalid or expired token');
+          }
+
+          return await initiateTwitterOAuth1a(supabaseClient, user.id, supabaseUrl, twitterConsumerKey, twitterConsumerSecret);
+        }
+      } catch (parseError) {
+        console.error('Error parsing POST body:', parseError);
+        throw new Error('Invalid request body');
       }
     }
 
