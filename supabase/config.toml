@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.youtube-oauth]
 verify_jwt = false
+
+[functions.post-to-social]
+verify_jwt = true
