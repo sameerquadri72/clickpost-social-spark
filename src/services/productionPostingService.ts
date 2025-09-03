@@ -21,6 +21,8 @@ export class ProductionPostingService {
 
   async publishPost(post: ScheduledPost, accounts: SocialAccount[]): Promise<PostingResult[]> {
     try {
+      console.log('Publishing post with accounts:', accounts.map(acc => ({ id: acc.id, platform: acc.platform })));
+      
       // Use the Edge Function to post to social media platforms
       const { data, error } = await supabase.functions.invoke('post-to-social', {
         body: {
@@ -30,17 +32,19 @@ export class ProductionPostingService {
         }
       });
 
+      console.log('Edge function response:', { data, error });
+
       if (error) {
         console.error('Edge function error:', error);
         throw error;
       }
 
-      return data.results || [];
+      return data?.results || [];
     } catch (error) {
       console.error('Publishing error:', error);
       // Return error results for all platforms
-      return post.platforms.map(platform => ({
-        platform,
+      return accounts.map(account => ({
+        platform: account.platform,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       }));

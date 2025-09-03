@@ -193,20 +193,16 @@ export const PostCreationForm: React.FC = () => {
       return;
     }
 
-    // Process media files first
+    // For now, we'll handle text posts only. Media upload would require proper storage setup
     const mediaUrls: string[] = [];
-    for (const file of uploadedMedia) {
-      try {
-        // Create a simple data URL for now - in production, upload to storage
-        const dataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string);
-          reader.readAsDataURL(file);
-        });
-        mediaUrls.push(dataUrl);
-      } catch (error) {
-        console.error('Failed to process media file:', error);
-      }
+    
+    if (uploadedMedia.length > 0) {
+      toast({
+        title: "Media Not Supported Yet",
+        description: "Media posting will be available soon. Posting text only.",
+        variant: "destructive",
+      });
+      // Still proceed with text-only posting
     }
 
     const platforms = selectedAccounts.map(account => account.platform);
