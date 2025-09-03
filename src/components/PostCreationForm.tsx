@@ -25,10 +25,11 @@ const PLATFORM_LIMITS = {
 };
 
 export const PostCreationForm: React.FC = () => {
-  const [content, setContent] = useState('');
+const [content, setContent] = useState('');
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([]);
   const [activeTab, setActiveTab] = useState('scheduled');
+  const [isPosting, setIsPosting] = useState(false);
   const { toast } = useToast();
   const { addScheduledPost } = usePosts();
   const { getActiveAccounts } = useSocialAccounts();
@@ -179,6 +180,15 @@ export const PostCreationForm: React.FC = () => {
       return;
     }
 
+    if (!content.trim()) {
+      toast({
+        title: "Empty Post",
+        description: "Please add some content to your post.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const activeAccounts = getActiveAccounts();
     const selectedAccounts = activeAccounts.filter(account => 
       selectedAccountIds.includes(account.id)
@@ -187,11 +197,17 @@ export const PostCreationForm: React.FC = () => {
     if (selectedAccounts.length === 0) {
       toast({
         title: "No Connected Accounts",
-        description: "Please connect your social media accounts in the Accounts section.",
+        description: "Please select at least one connected account to post to.",
         variant: "destructive",
       });
       return;
     }
+
+    console.log('Starting post publishing process...');
+    console.log('Selected accounts:', selectedAccounts);
+    console.log('Content:', content);
+
+    setIsPosting(true);
 
     // For now, we'll handle text posts only. Media upload would require proper storage setup
     const mediaUrls: string[] = [];
@@ -229,7 +245,9 @@ export const PostCreationForm: React.FC = () => {
         description: "Your post is being published to selected platforms...",
       });
 
+      console.log('Calling productionPostingService.publishPost...');
       const results = await productionPostingService.publishPost(postToPublish, selectedAccounts);
+      console.log('Publishing results:', results);
       
       const successfulPosts = results.filter(r => r.success);
       const failedPosts = results.filter(r => !r.success);
@@ -263,6 +281,8 @@ export const PostCreationForm: React.FC = () => {
         description: "An error occurred while publishing your post.",
         variant: "destructive",
       });
+    } finally {
+      setIsPosting(false);
     }
   };
 
@@ -396,9 +416,22 @@ export const PostCreationForm: React.FC = () => {
 
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-3">
-                  <Button onClick={handlePostNow} className="gradient-bg text-white">
-                    <Send className="h-4 w-4 mr-2" />
-                    Post Now
+                  <Button 
+                    onClick={handlePostNow} 
+                    disabled={isPosting || !content.trim() || selectedAccountIds.length === 0}
+                    className="gradient-bg text-white"
+                  >
+                    {isPosting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Post Now
+                      </>
+                    )}
                   </Button>
                   <Button onClick={() => setActiveTab('schedule')} variant="outline">
                     <Clock className="h-4 w-4 mr-2" />
