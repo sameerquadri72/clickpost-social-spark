@@ -62,48 +62,58 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
     );
   }
 
+  // Group accounts by platform
+  const accountsByPlatform = connectedAccounts.reduce((acc, account) => {
+    const platform = account.platform;
+    if (!acc[platform]) {
+      acc[platform] = [];
+    }
+    acc[platform].push(account);
+    return acc;
+  }, {} as Record<string, SocialAccount[]>);
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-      {connectedAccounts.map((account: SocialAccount) => {
-        const platform = account.platform;
+    <div className="space-y-4">
+      {Object.entries(accountsByPlatform).map(([platform, accounts]) => {
         const Icon = PLATFORM_ICONS[platform as keyof typeof PLATFORM_ICONS];
         const colors = PLATFORM_COLORS[platform as keyof typeof PLATFORM_COLORS];
-        const isSelected = selectedAccountIds.includes(account.id);
         
         return (
-          <div
-            key={account.id}
-            className={`flex items-center space-x-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-              isSelected 
-                ? `${colors.border} ${colors.bg}` 
-                : 'border-slate-200 hover:border-slate-300'
-            }`}
-            onClick={() => handleAccountToggle(account.id)}
-          >
-            <Checkbox
-              id={account.id}
-              checked={isSelected}
-              onChange={() => handleAccountToggle(account.id)}
-            />
-            
-            <div className={`p-2 rounded-lg ${colors.bg}`}>
-              {Icon && <Icon className={`h-5 w-5 ${colors.icon}`} />}
+          <div key={platform}>
+            <div className="flex items-center gap-2 mb-2">
+              {Icon && <Icon className={`h-4 w-4 ${colors.icon}`} />}
+              <span className="text-sm font-medium capitalize">
+                {platform === 'twitter' ? 'X' : platform}
+              </span>
             </div>
             
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={account.profile_image || undefined} alt={account.name} />
-              <AvatarFallback className="text-xs">
-                {account.name?.substring(0, 2)?.toUpperCase() || platform.substring(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            
-            <div className="flex-1 min-w-0">
-              <Label htmlFor={account.id} className="cursor-pointer font-medium block truncate">
-                {account.name}
-              </Label>
-              <p className="text-sm text-slate-500 truncate">
-                @{account.username} • {platform.charAt(0).toUpperCase() + platform.slice(1)}
-              </p>
+            <div className="flex flex-wrap gap-2">
+              {accounts.map((account: SocialAccount) => {
+                const isSelected = selectedAccountIds.includes(account.id);
+                
+                return (
+                  <div
+                    key={account.id}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-full border cursor-pointer transition-all ${
+                      isSelected 
+                        ? `${colors.border} ${colors.bg} border-2` 
+                        : 'border-slate-200 hover:border-slate-300 bg-white'
+                    }`}
+                    onClick={() => handleAccountToggle(account.id)}
+                  >
+                    <Avatar className="h-5 w-5">
+                      <AvatarImage src={account.profile_image || undefined} alt={account.name} />
+                      <AvatarFallback className="text-xs">
+                        {account.name?.substring(0, 2)?.toUpperCase() || platform.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    
+                    <span className="text-sm font-medium truncate max-w-24">
+                      {account.username}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         );

@@ -28,8 +28,10 @@ export const PostCreationForm: React.FC = () => {
 const [content, setContent] = useState('');
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
   const [uploadedMedia, setUploadedMedia] = useState<File[]>([]);
-  const [activeTab, setActiveTab] = useState('scheduled');
+  const [activeTab, setActiveTab] = useState('create');
   const [isPosting, setIsPosting] = useState(false);
+  const [isScheduleMode, setIsScheduleMode] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState<Date | undefined>();
   const { toast } = useToast();
   const { addScheduledPost } = usePosts();
   const { getActiveAccounts } = useSocialAccounts();
@@ -369,81 +371,131 @@ const [content, setContent] = useState('');
           </TabsContent>
 
           <TabsContent value="create" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create Your Post</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Account Selection */}
-                <div>
-                  <Label htmlFor="accounts">Select Connected Accounts</Label>
-                  <ConnectedAccountSelector 
-                    selectedAccountIds={selectedAccountIds}
-                    onAccountChange={setSelectedAccountIds}
-                  />
-                </div>
+            <div className="flex gap-6">
+              {/* Main Content */}
+              <div className="flex-1">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Create Your Post</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Content Input */}
+                    <div>
+                      <Label htmlFor="content">Caption (required)</Label>
+                      <Textarea
+                        id="content"
+                        placeholder="post this"
+                        value={content}
+                        onChange={(e) => setContent(e.target.value)}
+                        className={`min-h-[100px] resize-none ${isOverLimit ? 'border-red-500' : ''}`}
+                      />
+                      <div className="flex justify-between items-center mt-1">
+                        <span className={`text-sm ${isOverLimit ? 'text-red-500' : 'text-slate-500'}`}>
+                          {content.length}/2200
+                        </span>
+                        <Button variant="outline" size="sm">Change</Button>
+                      </div>
+                    </div>
 
-                {/* Content Input */}
-                <div>
-                  <Label htmlFor="content">Post Content</Label>
-                  <Textarea
-                    id="content"
-                    placeholder="What's on your mind? Share your thoughts with your audience..."
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    className={`min-h-[200px] resize-none ${isOverLimit ? 'border-red-500' : ''}`}
-                  />
-                  <div className="flex justify-between items-center mt-2">
-                    <span className={`text-sm ${isOverLimit ? 'text-red-500' : 'text-slate-500'}`}>
-                      {content.length} / {currentLimit} characters
-                    </span>
-                    {selectedAccountIds.length > 1 && (
-                      <span className="text-xs text-slate-400">
-                        Limit based on most restrictive platform
-                      </span>
-                    )}
+                    {/* Media Upload */}
+                    <div>
+                      <MediaUpload 
+                        onMediaUpload={setUploadedMedia}
+                        uploadedMedia={uploadedMedia}
+                      />
+                    </div>
+
+                    {/* Account Selection */}
+                    <div>
+                      <Label className="text-base font-semibold">Select accounts to post to:</Label>
+                      <div className="mt-3">
+                        <ConnectedAccountSelector 
+                          selectedAccountIds={selectedAccountIds}
+                          onAccountChange={setSelectedAccountIds}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Schedule Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Label htmlFor="schedule-toggle" className="text-base font-medium">
+                          Schedule post
+                        </Label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="schedule-toggle"
+                            checked={isScheduleMode}
+                            onChange={(e) => setIsScheduleMode(e.target.checked)}
+                            className="w-10 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"
+                          />
+                        </div>
+                      </div>
+                      
+                      {isScheduleMode && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="datetime-local"
+                            value={scheduleDateTime ? scheduleDateTime.toISOString().slice(0, 16) : ''}
+                            onChange={(e) => setScheduleDateTime(new Date(e.target.value))}
+                            className="border rounded-md px-3 py-1"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Button */}
+                    <div>
+                      {isScheduleMode ? (
+                        <Button 
+                          onClick={() => handleSchedulePost({ dateTime: scheduleDateTime, timeZone: userTimezone })}
+                          disabled={isPosting || !content.trim() || selectedAccountIds.length === 0 || !scheduleDateTime}
+                          className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                        >
+                          <Clock className="h-4 w-4 mr-2" />
+                          Schedule
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={handlePostNow} 
+                          disabled={isPosting || !content.trim() || selectedAccountIds.length === 0}
+                          className="w-full bg-blue-500 hover:bg-blue-600 text-white"
+                        >
+                          {isPosting ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Publishing...
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 mr-2" />
+                              Post Now
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Media Preview */}
+              {uploadedMedia.length > 0 && (
+                <div className="w-80">
+                  <div className="sticky top-6">
+                    <PostPreview 
+                      content={content}
+                      selectedPlatforms={getActiveAccounts()
+                        .filter(account => selectedAccountIds.includes(account.id))
+                        .map(account => account.platform)
+                      }
+                      uploadedMedia={uploadedMedia}
+                    />
                   </div>
                 </div>
-
-                {/* Media Upload */}
-                <div>
-                  <Label>Media</Label>
-                  <MediaUpload 
-                    onMediaUpload={setUploadedMedia}
-                    uploadedMedia={uploadedMedia}
-                  />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex flex-wrap gap-3">
-                  <Button 
-                    onClick={handlePostNow} 
-                    disabled={isPosting || !content.trim() || selectedAccountIds.length === 0}
-                    className="gradient-bg text-white"
-                  >
-                    {isPosting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Publishing...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Post Now
-                      </>
-                    )}
-                  </Button>
-                  <Button onClick={() => setActiveTab('schedule')} variant="outline">
-                    <Clock className="h-4 w-4 mr-2" />
-                    Schedule
-                  </Button>
-                  <Button onClick={handleSaveDraft} variant="outline">
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Draft
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
