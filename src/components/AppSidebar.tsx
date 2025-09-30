@@ -7,7 +7,9 @@ import {
   User, 
   Plus, 
   Image,
-  Menu
+  Menu,
+  Clock,
+  FileText
 } from 'lucide-react';
 import {
   Sidebar,
@@ -25,6 +27,8 @@ import {
 const navigationItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Calendar },
   { title: 'Create Post', url: '/create', icon: Plus },
+  { title: 'Scheduled Posts', url: '/scheduled', icon: Clock },
+  { title: 'Drafts', url: '/drafts', icon: FileText },
   { title: 'Content', url: '/content', icon: Image },
   { title: 'Calendar', url: '/calendar', icon: Calendar },
   { title: 'Accounts', url: '/accounts', icon: User },

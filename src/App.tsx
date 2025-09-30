@@ -19,6 +19,8 @@ import NotFound from "./pages/NotFound";
 import { CreatePost } from "@/pages/CreatePost";
 import { Calendar } from "@/pages/Calendar";
 import { Accounts } from "@/pages/Accounts";
+import { ScheduledPosts } from "@/pages/ScheduledPosts";
+import { Drafts } from "@/pages/Drafts";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +66,20 @@ const App = () => {
                   <ProtectedRoute>
                     <Layout>
                       <CreatePost />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/scheduled" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <ScheduledPosts />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/drafts" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Drafts />
                     </Layout>
                   </ProtectedRoute>
                 } />
