@@ -1,10 +1,14 @@
 import React from 'react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Facebook, Twitter, Linkedin, Instagram, Youtube } from 'lucide-react';
 import { useSocialAccounts } from '@/contexts/SocialAccountsContext';
 import { SocialAccount } from '@/contexts/SocialAccountsContext';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const PLATFORM_ICONS = {
   facebook: Facebook,
@@ -62,68 +66,57 @@ export const ConnectedAccountSelector: React.FC<ConnectedAccountSelectorProps> =
     );
   }
 
-  // Group accounts by platform
-  const accountsByPlatform = connectedAccounts.reduce((acc, account) => {
-    const platform = account.platform;
-    if (!acc[platform]) {
-      acc[platform] = [];
-    }
-    acc[platform].push(account);
-    return acc;
-  }, {} as Record<string, SocialAccount[]>);
-
   return (
-    <div className="space-y-6">
-      {Object.entries(accountsByPlatform).map(([platform, accounts]) => {
-        const Icon = PLATFORM_ICONS[platform as keyof typeof PLATFORM_ICONS];
-        const colors = PLATFORM_COLORS[platform as keyof typeof PLATFORM_COLORS];
-        
-        return (
-          <div key={platform}>
-            <div className="flex items-center gap-2 mb-4">
-              {Icon && <Icon className={`h-5 w-5 ${colors.icon}`} />}
-              <span className="text-base font-semibold capitalize text-slate-900">
-                {platform === 'twitter' ? 'X' : platform}
-              </span>
-            </div>
-            
-            <div className="flex flex-wrap gap-4">
-              {accounts.map((account: SocialAccount) => {
-                const isSelected = selectedAccountIds.includes(account.id);
-                
-                return (
-                  <div
-                    key={account.id}
-                    className="flex flex-col items-center gap-2 cursor-pointer transition-all hover:scale-105"
-                    onClick={() => handleAccountToggle(account.id)}
-                  >
-                    <div className={`relative rounded-full p-1 ${
-                      isSelected 
-                        ? `bg-gradient-to-br ${colors.icon === 'text-blue-600' ? 'from-blue-500 to-blue-600' : 
-                           colors.icon === 'text-slate-900' ? 'from-slate-700 to-slate-900' :
-                           colors.icon === 'text-blue-700' ? 'from-blue-600 to-blue-700' :
-                           colors.icon === 'text-pink-600' ? 'from-pink-500 to-pink-600' :
-                           'from-red-500 to-red-600'}`
-                        : 'bg-slate-200'
-                    }`}>
-                      <Avatar className="h-16 w-16 ring-2 ring-white">
-                        <AvatarImage src={account.profile_image || undefined} alt={account.name} />
-                        <AvatarFallback className="text-sm font-medium">
-                          {account.name?.substring(0, 2)?.toUpperCase() || platform.substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                    </div>
-                    
-                    <span className="text-xs font-medium text-slate-700 max-w-[80px] truncate text-center">
-                      {account.username}
-                    </span>
+    <TooltipProvider>
+      <div className="flex flex-wrap gap-6 items-center justify-center">
+        {connectedAccounts.map((account: SocialAccount) => {
+          const isSelected = selectedAccountIds.includes(account.id);
+          const Icon = PLATFORM_ICONS[account.platform as keyof typeof PLATFORM_ICONS];
+          const colors = PLATFORM_COLORS[account.platform as keyof typeof PLATFORM_COLORS];
+          
+          return (
+            <Tooltip key={account.id}>
+              <TooltipTrigger asChild>
+                <div
+                  className="relative cursor-pointer transition-all hover:scale-110 group"
+                  onClick={() => handleAccountToggle(account.id)}
+                >
+                  <div className={`relative rounded-full p-1 transition-all ${
+                    isSelected 
+                      ? `bg-gradient-to-br ${colors.icon === 'text-blue-600' ? 'from-blue-500 to-blue-600' : 
+                         colors.icon === 'text-slate-900' ? 'from-slate-700 to-slate-900' :
+                         colors.icon === 'text-blue-700' ? 'from-blue-600 to-blue-700' :
+                         colors.icon === 'text-pink-600' ? 'from-pink-500 to-pink-600' :
+                         'from-red-500 to-red-600'}`
+                      : 'bg-slate-300'
+                  }`}>
+                    <Avatar className="h-16 w-16 ring-2 ring-white">
+                      <AvatarImage src={account.profile_image || undefined} alt={account.name} />
+                      <AvatarFallback className="text-sm font-medium">
+                        {account.name?.substring(0, 2)?.toUpperCase() || account.platform.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+                  
+                  {/* Platform badge at top corner */}
+                  {Icon && (
+                    <div className={`absolute -top-1 -right-1 ${colors.bg} rounded-full p-1.5 border-2 border-white shadow-sm`}>
+                      <Icon className={`h-3.5 w-3.5 ${colors.icon}`} />
+                    </div>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent 
+                side="bottom" 
+                className="bg-foreground text-background font-medium px-3 py-1.5"
+              >
+                <p>{account.name || account.username}</p>
+                <p className="text-xs opacity-80">@{account.username}</p>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
+      </div>
+    </TooltipProvider>
   );
 };
