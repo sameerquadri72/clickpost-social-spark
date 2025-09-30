@@ -101,10 +101,22 @@
   }
   
   .glass-effect {
-    @apply bg-white/80 backdrop-blur-xl border border-white/20;
+    @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg;
+  }
+  
+  .glass-card {
+    @apply bg-white/60 backdrop-blur-md border border-white/30 rounded-2xl shadow-xl;
+  }
+  
+  .glass-button {
+    @apply bg-white/40 backdrop-blur-sm border border-white/30 hover:bg-white/60 transition-all duration-300;
   }
   
   .hover-lift {
     @apply transition-all duration-200 hover:scale-105 hover:shadow-lg;
+  }
+  
+  .hover-glow {
+    @apply transition-all duration-300 hover:shadow-[0_0_20px_rgba(59,130,246,0.5)];
   }
 }
